@@ -53,14 +53,15 @@ services:
     image: minio/mc:latest
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do
-        echo 'waiting for minio...'; sleep 2;
-      done &&
-      mc mb --ignore-existing local/error-logging-raw &&
-      echo 'minio bucket ready'
-      "
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin; do
+          echo 'waiting for minio...'; sleep 2;
+        done
+        mc mb --ignore-existing local/error-logging-raw
+        echo 'minio bucket ready'
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -91,15 +92,15 @@ services:
     image: confluentinc/cp-kafka:7.6.0
     depends_on:
       - kafka
-    entrypoint: >
-      /bin/sh -c "
-      until kafka-topics --bootstrap-server kafka:29092 --list; do
-        echo 'waiting for kafka...'; sleep 2;
-      done &&
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
-        --topic error-logs --partitions 6 --replication-factor 1 &&
-      echo 'kafka topic ready'
-      "
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+          echo 'waiting for kafka...'; sleep 2;
+        done
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic error-logs --partitions 6 --replication-factor 1
+        echo 'kafka topic ready'
 
 volumes:
   mysql_data:

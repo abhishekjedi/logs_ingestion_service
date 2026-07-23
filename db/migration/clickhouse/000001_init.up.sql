@@ -1,7 +1,3 @@
--- logs: the all-severities foundation table. Every OTLP log record lands here;
--- error tracking derives from the subset where exception_type != ''. issue_id is
--- resolved by the worker before insert (0 for non-error records) so the issue_stats
--- MV is a plain projection.
 CREATE TABLE IF NOT EXISTS logs_local ON CLUSTER errlog_cluster
 (
     timestamp           DateTime64(9),
@@ -31,7 +27,6 @@ TTL toDateTime(timestamp) + INTERVAL 14 DAY;
 CREATE TABLE IF NOT EXISTS logs ON CLUSTER errlog_cluster AS logs_local
 ENGINE = Distributed(errlog_cluster, currentDatabase(), logs_local, cityHash64(service_id));
 
--- error_events: full-fidelity debugging rows, rate-limited/sampled per fingerprint.
 CREATE TABLE IF NOT EXISTS error_events_local ON CLUSTER errlog_cluster
 (
     event_id            UUID,
@@ -64,7 +59,6 @@ TTL toDateTime(timestamp) + INTERVAL 30 DAY;
 CREATE TABLE IF NOT EXISTS error_events ON CLUSTER errlog_cluster AS error_events_local
 ENGINE = Distributed(errlog_cluster, currentDatabase(), error_events_local, cityHash64(service_id));
 
--- issue_stats: durable analytics source of truth (counts + distinct users/sessions).
 CREATE TABLE IF NOT EXISTS issue_stats_local ON CLUSTER errlog_cluster
 (
     service_id  UInt64,
@@ -94,7 +88,6 @@ FROM logs_local
 WHERE exception_type != ''
 GROUP BY service_id, issue_id, hour;
 
--- service_stats: per-service overview rollup across all severities.
 CREATE TABLE IF NOT EXISTS service_stats_local ON CLUSTER errlog_cluster
 (
     service_id      UInt64,
@@ -123,7 +116,6 @@ SELECT
 FROM logs_local
 GROUP BY service_id, hour, severity_number;
 
--- release_health: crash-free-session rate per release (severity >= 17 == ERROR).
 CREATE TABLE IF NOT EXISTS release_health_local ON CLUSTER errlog_cluster
 (
     service_id       UInt64,

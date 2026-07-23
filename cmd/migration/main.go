@@ -7,10 +7,10 @@ import (
 	"log"
 
 	"error-logging/db/migration"
-	mysqlclient "error-logging/pkg/client/mysql"
 	"error-logging/pkg/config"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2" // registers the "clickhouse" sql driver
+	_ "github.com/go-sql-driver/mysql"         // registers the "mysql" sql driver
 	"github.com/golang-migrate/migrate/v4"
 	chdriver "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	mysqldriver "github.com/golang-migrate/migrate/v4/database/mysql"
@@ -37,27 +37,24 @@ func main() {
 }
 
 func runMySQL(cfg config.MysqlConfig) error {
-	client, err := mysqlclient.NewClient(cfg)
-	if err != nil {
-		return fmt.Errorf("connect mysql: %w", err)
-	}
-	defer func() {
-		if err := client.Close(); err != nil {
-			log.Printf("error closing mysql client: %v", err)
-		}
-	}()
+	// A dedicated connection with multiStatements=true so a migration file may
+	// contain several ;-separated statements. This is kept separate from the app's
+	// gorm pool, which deliberately does NOT enable stacked statements.
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&parseTime=true",
+		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
 
-	sqlDB, err := client.DB.DB()
+	conn, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return fmt.Errorf("obtain mysql handle: %w", err)
+		return fmt.Errorf("open mysql: %w", err)
 	}
+	defer conn.Close()
 
 	src, err := iofs.New(migration.MySQLFS, "mysql")
 	if err != nil {
 		return fmt.Errorf("load mysql migration source: %w", err)
 	}
 
-	driver, err := mysqldriver.WithInstance(sqlDB, &mysqldriver.Config{})
+	driver, err := mysqldriver.WithInstance(conn, &mysqldriver.Config{})
 	if err != nil {
 		return fmt.Errorf("init mysql migrate driver: %w", err)
 	}

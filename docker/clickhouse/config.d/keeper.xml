@@ -1,4 +1,8 @@
 <clickhouse>
+    <!-- Bind Keeper (and the server) on all interfaces so the in-process ZooKeeper
+         client can reach Keeper via the container's network IP, not just loopback. -->
+    <listen_host>0.0.0.0</listen_host>
+
     <!-- Embedded ClickHouse Keeper (Raft coordination for ReplicatedMergeTree).
          Runs inside this single server for local dev; a multi-node deployment would
          run a dedicated 3-node Keeper ensemble instead. -->
