@@ -25,9 +25,11 @@ func NewClient(cfg config.KafkaConfig) (*Client, error) {
 	})
 
 	writer := &kafka.Writer{
-		Addr:     kafka.TCP(cfg.Brokers...),
-		Topic:    cfg.Topic,
-		Balancer: &kafka.LeastBytes{},
+		Addr:  kafka.TCP(cfg.Brokers...),
+		Topic: cfg.Topic,
+		// Hash the message key (service id) so a service's records map to a stable
+		// partition — per-service ordering plus even spread across partitions.
+		Balancer: &kafka.Hash{},
 	}
 
 	log.Println("Kafka client initialized successfully")

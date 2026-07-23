@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os/signal"
 	"syscall"
 
 	"error-logging/di"
+	"error-logging/dto"
 	kafkaclient "error-logging/pkg/client/kafka"
+	"error-logging/services"
 )
 
 func main() {
@@ -20,10 +23,9 @@ func main() {
 	}
 }
 
-// runWorker consumes Kafka messages until a shutdown signal arrives, then closes
-// the Kafka client. The consume loop is driven by a cancellable context so an
-// interrupt unblocks ReadMessage promptly instead of waiting on the next message.
-func runWorker(client *kafkaclient.Client) error {
+// runWorker consumes ingest messages and processes each through the pipeline until
+// a shutdown signal arrives, then closes the Kafka client.
+func runWorker(client *kafkaclient.Client, processor services.ProcessorService) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -35,7 +37,7 @@ func runWorker(client *kafkaclient.Client) error {
 
 	log.Println("Worker started, consuming messages...")
 	for {
-		msg, err := client.Reader.ReadMessage(ctx)
+		m, err := client.Reader.ReadMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				log.Println("shutdown signal received, stopping worker")
@@ -45,8 +47,16 @@ func runWorker(client *kafkaclient.Client) error {
 			continue
 		}
 
-		log.Printf("received message: topic=%s key=%s value=%s",
-			msg.Topic, string(msg.Key), string(msg.Value),
-		)
+		var msg dto.LogIngestMessage
+		if err := json.Unmarshal(m.Value, &msg); err != nil {
+			log.Printf("skipping malformed message: %v", err)
+			continue
+		}
+
+		if err := processor.Process(ctx, msg); err != nil {
+			log.Printf("process message (service=%d): %v", msg.ServiceID, err)
+			continue
+		}
+		log.Printf("processed batch service=%d project=%d", msg.ServiceID, msg.ProjectID)
 	}
 }

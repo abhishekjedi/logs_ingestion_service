@@ -27,7 +27,7 @@ func TestServiceService_CreateService(t *testing.T) {
 			args.Get(1).(*dbdto.Service).ID = 99
 		})
 
-	svc := NewServiceService(svcRepo, projRepo, config.AppConfig{BaseURL: "http://localhost:8080"})
+	svc := NewServiceService(svcRepo, projRepo, nil, config.AppConfig{BaseURL: "http://localhost:8080"})
 
 	resp, err := svc.CreateService(context.Background(), 5, dto.CreateServiceRequest{Name: "web"})
 
@@ -59,7 +59,7 @@ func TestServiceService_CreateService_ProjectNotFound(t *testing.T) {
 
 	projRepo.On("GetByID", mock.Anything, uint64(404)).Return(nil, errors.New("not found"))
 
-	svc := NewServiceService(svcRepo, projRepo, config.AppConfig{BaseURL: "http://localhost:8080"})
+	svc := NewServiceService(svcRepo, projRepo, nil, config.AppConfig{BaseURL: "http://localhost:8080"})
 
 	resp, err := svc.CreateService(context.Background(), 404, dto.CreateServiceRequest{Name: "web"})
 
@@ -77,7 +77,7 @@ func TestServiceService_CreateService_CreateError(t *testing.T) {
 	projRepo.On("GetByID", mock.Anything, uint64(5)).Return(&dbdto.Project{ID: 5}, nil)
 	svcRepo.On("Create", mock.Anything, mock.Anything).Return(errors.New("duplicate public_id"))
 
-	svc := NewServiceService(svcRepo, projRepo, config.AppConfig{BaseURL: "http://localhost:8080"})
+	svc := NewServiceService(svcRepo, projRepo, nil, config.AppConfig{BaseURL: "http://localhost:8080"})
 
 	resp, err := svc.CreateService(context.Background(), 5, dto.CreateServiceRequest{Name: "web"})
 
@@ -94,7 +94,7 @@ func TestServiceService_ListServices(t *testing.T) {
 	want := []dbdto.Service{{ID: 1}, {ID: 2}}
 	svcRepo.On("ListByProject", mock.Anything, uint64(5)).Return(want, nil)
 
-	svc := NewServiceService(svcRepo, projRepo, config.AppConfig{})
+	svc := NewServiceService(svcRepo, projRepo, nil, config.AppConfig{})
 
 	got, err := svc.ListServices(context.Background(), 5)
 

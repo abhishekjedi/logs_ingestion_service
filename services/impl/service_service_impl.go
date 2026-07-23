@@ -5,12 +5,15 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	"error-logging/dto"
+	redisclient "error-logging/pkg/client/redis"
 	"error-logging/pkg/config"
 	"error-logging/services"
 )
@@ -18,18 +21,23 @@ import (
 // apiKeyScheme prefixes every minted key so raw keys are recognisable on sight.
 const apiKeyScheme = "elk_live_"
 
+// apiKeyCacheTTL bounds how long a resolved key→service mapping is cached.
+const apiKeyCacheTTL = 5 * time.Minute
+
 type serviceService struct {
 	svcs     repository.ServiceRepository
 	projects repository.ProjectRepository
+	redis    *redisclient.Client
 	appCfg   config.AppConfig
 }
 
 func NewServiceService(
 	svcs repository.ServiceRepository,
 	projects repository.ProjectRepository,
+	redis *redisclient.Client,
 	appCfg config.AppConfig,
 ) services.ServiceService {
-	return &serviceService{svcs: svcs, projects: projects, appCfg: appCfg}
+	return &serviceService{svcs: svcs, projects: projects, redis: redis, appCfg: appCfg}
 }
 
 func (s *serviceService) CreateService(ctx context.Context, projectID uint64, req dto.CreateServiceRequest) (*dto.CreateServiceResponse, error) {
@@ -70,6 +78,49 @@ func (s *serviceService) CreateService(ctx context.Context, projectID uint64, re
 
 func (s *serviceService) ListServices(ctx context.Context, projectID uint64) ([]dbdto.Service, error) {
 	return s.svcs.ListByProject(ctx, projectID)
+}
+
+func (s *serviceService) AuthenticateKey(ctx context.Context, rawKey string) (*dbdto.Service, error) {
+	hash := hashAPIKey(rawKey)
+	cacheKey := "apikey:" + hash
+
+	if svc := s.cacheGet(ctx, cacheKey); svc != nil {
+		return svc, nil
+	}
+
+	svc, err := s.svcs.GetByAPIKeyHash(ctx, hash)
+	if err != nil {
+		return nil, fmt.Errorf("resolve api key: %w", err)
+	}
+
+	s.cacheSet(ctx, cacheKey, svc)
+	return svc, nil
+}
+
+// cacheGet returns a cached service or nil. Redis is degradable: any error (miss,
+// unavailable, malformed) simply falls through to the DB.
+func (s *serviceService) cacheGet(ctx context.Context, key string) *dbdto.Service {
+	if s.redis == nil || s.redis.RDB == nil {
+		return nil
+	}
+	data, err := s.redis.RDB.Get(ctx, key).Bytes()
+	if err != nil {
+		return nil
+	}
+	var svc dbdto.Service
+	if err := json.Unmarshal(data, &svc); err != nil {
+		return nil
+	}
+	return &svc
+}
+
+func (s *serviceService) cacheSet(ctx context.Context, key string, svc *dbdto.Service) {
+	if s.redis == nil || s.redis.RDB == nil {
+		return
+	}
+	if data, err := json.Marshal(svc); err == nil {
+		s.redis.RDB.Set(ctx, key, data, apiKeyCacheTTL)
+	}
 }
 
 // randomHex returns a random hex string encoding nBytes of entropy.

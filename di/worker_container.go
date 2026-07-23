@@ -1,11 +1,13 @@
 package di
 
 import (
+	repositoryimpl "error-logging/db/repository/impl"
 	chclient "error-logging/pkg/client/clickhouse"
 	kafkaclient "error-logging/pkg/client/kafka"
 	mysqlclient "error-logging/pkg/client/mysql"
 	s3client "error-logging/pkg/client/s3"
 	"error-logging/pkg/config"
+	serviceimpl "error-logging/services/impl"
 
 	"go.uber.org/dig"
 )
@@ -25,12 +27,17 @@ func BuildWorkerContainer() *dig.Container {
 	container.Provide(mysqlclient.NewClient)
 	container.Provide(provideRedis)
 	container.Provide(chclient.NewClient)
+	container.Provide(chclient.NewNativeClient)
 	container.Provide(kafkaclient.NewClient)
 	container.Provide(s3client.NewClient)
 
-	// Repos
+	// Repositories
+	container.Provide(repositoryimpl.NewIssueRepository)
+	container.Provide(repositoryimpl.NewLogRepository)
+	container.Provide(repositoryimpl.NewErrorEventRepository)
 
 	// Services
+	container.Provide(serviceimpl.NewProcessorService)
 
 	return container
 }
