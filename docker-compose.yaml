@@ -18,16 +18,49 @@ services:
       - redis_data:/data
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.3
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # native protocol
+      - "9181:9181"   # keeper
     environment:
       CLICKHOUSE_DB: error_logging
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"   # S3 API (9002 on host to avoid clashing with ClickHouse 9000)
+      - "9001:9001"   # web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+
+  # One-shot: wait for MinIO, then create the raw-archive bucket.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        echo 'waiting for minio...'; sleep 2;
+      done &&
+      mc mb --ignore-existing local/error-logging-raw &&
+      echo 'minio bucket ready'
+      "
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -42,12 +75,34 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # Dual listeners: internal (kafka:29092) for other containers, host
+      # (localhost:9092) for apps running on the host.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     depends_on:
       - zookeeper
+
+  # One-shot: wait for Kafka, then create the logs topic with 6 partitions.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - kafka
+    entrypoint: >
+      /bin/sh -c "
+      until kafka-topics --bootstrap-server kafka:29092 --list; do
+        echo 'waiting for kafka...'; sleep 2;
+      done &&
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
+        --topic error-logs --partitions 6 --replication-factor 1 &&
+      echo 'kafka topic ready'
+      "
 
 volumes:
   mysql_data:
   redis_data:
   clickhouse_data:
+  minio_data:

@@ -1,0 +1,24 @@
+<clickhouse>
+    <!-- Single-node cluster definition. To scale out, add more <shard>/<replica>
+         entries here (and matching clickhouse-server containers); the DDL already
+         targets this cluster via ON CLUSTER and Distributed, so no schema change. -->
+    <remote_servers>
+        <errlog_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </errlog_cluster>
+    </remote_servers>
+
+    <!-- Macros substituted into ReplicatedMergeTree zookeeper paths. Each node in a
+         multi-node setup gets a distinct shard/replica pair. -->
+    <macros>
+        <shard>01</shard>
+        <replica>clickhouse-01</replica>
+        <cluster>errlog_cluster</cluster>
+    </macros>
+</clickhouse>

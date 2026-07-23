@@ -27,3 +27,11 @@ kafka:
     - localhost:9092
   group_id: error-logging-worker
   topic: error-logs
+
+s3:
+  endpoint: localhost:9002
+  access_key: minioadmin
+  secret_key: minioadmin
+  bucket: error-logging-raw
+  region: us-east-1
+  use_ssl: false

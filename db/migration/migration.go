@@ -10,3 +10,8 @@ import "embed"
 //
 //go:embed mysql/*.sql
 var MySQLFS embed.FS
+
+// ClickHouseFS holds the ClickHouse cluster migration files.
+//
+//go:embed clickhouse/*.sql
+var ClickHouseFS embed.FS

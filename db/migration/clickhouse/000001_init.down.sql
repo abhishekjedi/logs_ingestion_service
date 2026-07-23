@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS release_health_mv ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS service_stats_mv ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS issue_stats_mv ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS release_health ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS release_health_local ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS service_stats ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS service_stats_local ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS issue_stats ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS issue_stats_local ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS error_events ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS error_events_local ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS logs ON CLUSTER errlog_cluster SYNC;
+DROP TABLE IF EXISTS logs_local ON CLUSTER errlog_cluster SYNC;
