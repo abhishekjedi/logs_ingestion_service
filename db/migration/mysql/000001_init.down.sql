@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS issues;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS projects;

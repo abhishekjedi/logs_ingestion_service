@@ -1,11 +1,10 @@
 package di
 
 import (
-	"error-logging/pkg/config"
 	chclient "error-logging/pkg/client/clickhouse"
 	kafkaclient "error-logging/pkg/client/kafka"
 	mysqlclient "error-logging/pkg/client/mysql"
-	redisclient "error-logging/pkg/client/redis"
+	"error-logging/pkg/config"
 
 	"go.uber.org/dig"
 )
@@ -20,9 +19,9 @@ func BuildWorkerContainer() *dig.Container {
 	container.Provide(config.NewClickhouseConfig)
 	container.Provide(config.NewKafkaConfig)
 
-	// Clients
+	// Clients (mysql/clickhouse/kafka required — errors fail startup; redis degradable)
 	container.Provide(mysqlclient.NewClient)
-	container.Provide(redisclient.NewClient)
+	container.Provide(provideRedis)
 	container.Provide(chclient.NewClient)
 	container.Provide(kafkaclient.NewClient)
 

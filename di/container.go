@@ -1,13 +1,14 @@
 package di
 
 import (
-	"error-logging/controllers/impl"
+	controllerimpl "error-logging/controllers/impl"
+	repositoryimpl "error-logging/db/repository/impl"
 	"error-logging/dto"
 	chclient "error-logging/pkg/client/clickhouse"
 	mysqlclient "error-logging/pkg/client/mysql"
-	redisclient "error-logging/pkg/client/redis"
 	"error-logging/pkg/config"
 	"error-logging/router"
+	serviceimpl "error-logging/services/impl"
 
 	"go.uber.org/dig"
 )
@@ -17,27 +18,35 @@ func BuildContainer() *dig.Container {
 
 	// Configs
 	container.Provide(config.NewDefaultConfigProvider)
+	container.Provide(config.NewAppConfig)
 	container.Provide(config.NewMysqlConfig)
 	container.Provide(config.NewRedisConfig)
 	container.Provide(config.NewClickhouseConfig)
 
-	// Clients
+	// Clients (mysql/clickhouse required — errors fail startup; redis degradable)
 	container.Provide(mysqlclient.NewClient)
-	container.Provide(redisclient.NewClient)
+	container.Provide(provideRedis)
 	container.Provide(chclient.NewClient)
 
-	// Repos
+	// Repositories
+	container.Provide(repositoryimpl.NewProjectRepository)
+	container.Provide(repositoryimpl.NewServiceRepository)
 
 	// Services
+	container.Provide(serviceimpl.NewProjectService)
+	container.Provide(serviceimpl.NewServiceService)
 
 	// Controllers
-	container.Provide(impl.NewHealthController)
+	container.Provide(controllerimpl.NewHealthController)
+	container.Provide(controllerimpl.NewProjectController)
+	container.Provide(controllerimpl.NewServiceController)
 
 	// Routers
 	container.Provide(router.NewHealthRouter)
-	container.Provide(func(hr *router.HealthRouter) *router.Router {
+	container.Provide(router.NewProjectRouter)
+	container.Provide(func(hr *router.HealthRouter, pr *router.ProjectRouter) *router.Router {
 		return &router.Router{
-			Routes: []dto.Route{hr},
+			Routes: []dto.Route{hr, pr},
 		}
 	})
 
