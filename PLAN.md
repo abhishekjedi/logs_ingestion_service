@@ -399,3 +399,31 @@ MySQL/Redis already present.
 **Open question to settle in phase 1:** auth for project registration (user/org concept) vs
 open registration — `projects.owner_id` is reserved either way; ingest-path API-key auth is
 independent of this call.
+
+---
+
+## 14. Worker delivery semantics & resource bounds
+
+**Delivery = at-least-once.** The batch consumer uses `FetchMessage` + explicit
+`CommitMessages` *after* a successful ClickHouse flush. A crash between flush and commit
+replays the cycle on restart. Consequences, accepted deliberately:
+- **No duplicate issues** — `UNIQUE(service_id, fingerprint)` + idempotent `ResolveOrCreate`,
+  and Kafka keys by `service_id` so one service maps to one partition/consumer.
+- **Bounded duplicate rows** in `logs`/`error_events` on crash-replay → transient count drift
+  in the MVs (they aggregate at insert time). Not fixed by `ReplacingMergeTree` (the MV has
+  already counted); the honest options are "accept the small drift" (chosen) or de-dupe
+  before the MV (stateful, not worth it). `event_id` is currently random, so replays are not
+  retro-dedupable — a future deterministic `event_id` would be required for that.
+
+**Memory is bounded per cycle** (only one cycle is in flight at a time):
+- `fetch_max_bytes` caps raw payload bytes per cycle (not just `fetch_max_messages`), so a
+  few large messages end a cycle early instead of buffering GBs.
+- `flush_chunk_rows` caps rows per ClickHouse insert so the driver's batch buffer never holds
+  a whole large cycle.
+- `GOMEMLIMIT` (env / container) makes the GC defend a ceiling; docker-compose runs the
+  worker with `mem_limit` above `GOMEMLIMIT` for headroom.
+All four are env-overridable (`ERRLOG_WORKER_*`).
+
+**Scaling to N workers:** safe — partition-per-service exclusivity + idempotent upserts +
+atomic Redis ops mean no races. Requirement: **Kafka partitions ≥ worker replicas**
+(`KAFKA_PARTITIONS` env), else extra workers idle.

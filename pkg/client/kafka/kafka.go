@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"error-logging/pkg/config"
 
@@ -22,6 +23,13 @@ func NewClient(cfg config.KafkaConfig) (*Client, error) {
 		Brokers: cfg.Brokers,
 		GroupID: cfg.GroupID,
 		Topic:   cfg.Topic,
+		// Fetch many records per poll for throughput.
+		MinBytes: 1,
+		MaxBytes: 10e6,
+		// Snappier group membership so restarts rebalance quickly.
+		SessionTimeout:    6 * time.Second,
+		RebalanceTimeout:  6 * time.Second,
+		HeartbeatInterval: 2 * time.Second,
 	})
 
 	writer := &kafka.Writer{
@@ -30,6 +38,19 @@ func NewClient(cfg config.KafkaConfig) (*Client, error) {
 		// Hash the message key (service id) so a service's records map to a stable
 		// partition — per-service ordering plus even spread across partitions.
 		Balancer: &kafka.Hash{},
+		// Async: the ingest handler enqueues and returns 202 immediately instead of
+		// blocking on the broker round-trip. This is what lets ingest sustain high
+		// request rates; background failures surface via Completion. The writer is
+		// flushed on shutdown (client.Close) so buffered records are not lost.
+		Async:        true,
+		BatchSize:    500,
+		BatchTimeout: 50 * time.Millisecond,
+		RequiredAcks: kafka.RequireOne,
+		Completion: func(msgs []kafka.Message, err error) {
+			if err != nil {
+				log.Printf("kafka async write failed for %d message(s): %v", len(msgs), err)
+			}
+		},
 	}
 
 	log.Println("Kafka client initialized successfully")

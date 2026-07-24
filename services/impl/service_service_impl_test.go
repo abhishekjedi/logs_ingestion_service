@@ -102,3 +102,29 @@ func TestServiceService_ListServices(t *testing.T) {
 	assert.Len(t, got, 2)
 	svcRepo.AssertExpectations(t)
 }
+
+func TestServiceService_AuthenticateKey(t *testing.T) {
+	svcRepo := new(repomock.ServiceRepository)
+	rawKey := "elk_live_secret"
+	want := &dbdto.Service{ID: 1, PublicID: "pub", APIKeyHash: hashAPIKey(rawKey)}
+	// nil Redis → cache disabled → resolves straight from the repo by key hash.
+	svcRepo.On("GetByAPIKeyHash", mock.Anything, hashAPIKey(rawKey)).Return(want, nil)
+
+	svc := NewServiceService(svcRepo, nil, nil, config.AppConfig{})
+
+	got, err := svc.AuthenticateKey(context.Background(), rawKey)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+	svcRepo.AssertExpectations(t)
+}
+
+func TestServiceService_AuthenticateKey_Unknown(t *testing.T) {
+	svcRepo := new(repomock.ServiceRepository)
+	svcRepo.On("GetByAPIKeyHash", mock.Anything, mock.Anything).Return(nil, errors.New("not found"))
+
+	svc := NewServiceService(svcRepo, nil, nil, config.AppConfig{})
+
+	got, err := svc.AuthenticateKey(context.Background(), "elk_live_bogus")
+	require.Error(t, err)
+	assert.Nil(t, got)
+}

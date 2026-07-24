@@ -15,12 +15,18 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type ingestService struct {
-	kafka *kafkaclient.Client
+// messageWriter is the slice of the Kafka writer the ingest service needs, so it
+// can be faked in tests. *kafka.Writer satisfies it.
+type messageWriter interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
 }
 
-func NewIngestService(kafka *kafkaclient.Client) services.IngestService {
-	return &ingestService{kafka: kafka}
+type ingestService struct {
+	writer messageWriter
+}
+
+func NewIngestService(client *kafkaclient.Client) services.IngestService {
+	return &ingestService{writer: client.Writer}
 }
 
 func (s *ingestService) Ingest(ctx context.Context, service *dbdto.Service, payload []byte) error {
@@ -38,7 +44,7 @@ func (s *ingestService) Ingest(ctx context.Context, service *dbdto.Service, payl
 
 	// Key by service id so all of a service's records land on the same partition
 	// (ordering per service) and load spreads across partitions by service.
-	return s.kafka.Writer.WriteMessages(ctx, kafka.Message{
+	return s.writer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(strconv.FormatUint(service.ID, 10)),
 		Value: value,
 	})

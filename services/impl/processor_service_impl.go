@@ -1,18 +1,20 @@
 package impl
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"error-logging/constants"
 	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	"error-logging/dto"
-	redisclient "error-logging/pkg/client/redis"
-	s3client "error-logging/pkg/client/s3"
+	"error-logging/pkg/config"
 	"error-logging/pkg/fingerprint"
 	"error-logging/pkg/otlp"
 	"error-logging/services"
@@ -20,44 +22,118 @@ import (
 	"github.com/google/uuid"
 )
 
-// rateLimitPerSecond bounds how many full-fidelity error_events rows we store per
-// fingerprint per second. Counting (via logs → MVs) is never gated by this.
-const rateLimitPerSecond = 10
-
 // metadataFrames bounds how many frames are cached on the issue metadata sample.
 const metadataFrames = 3
 
 type processorService struct {
-	s3          *s3client.Client
-	issues      repository.IssueRepository
-	logs        repository.LogRepository
-	errorEvents repository.ErrorEventRepository
-	redis       *redisclient.Client
+	store    services.ObjectStore
+	issues   repository.IssueRepository
+	cache    services.IssueCache
+	limiter  services.RateLimiter
+	poolSize int
 }
 
 func NewProcessorService(
-	s3 *s3client.Client,
+	store services.ObjectStore,
 	issues repository.IssueRepository,
-	logs repository.LogRepository,
-	errorEvents repository.ErrorEventRepository,
-	redis *redisclient.Client,
+	cache services.IssueCache,
+	limiter services.RateLimiter,
+	cfg config.WorkerConfig,
 ) services.ProcessorService {
-	return &processorService{s3: s3, issues: issues, logs: logs, errorEvents: errorEvents, redis: redis}
+	size := cfg.PoolSize
+	if size < 1 {
+		size = 1
+	}
+	return &processorService{store: store, issues: issues, cache: cache, limiter: limiter, poolSize: size}
 }
 
-func (p *processorService) Process(ctx context.Context, msg dto.LogIngestMessage) error {
-	// 1. Archive the raw payload (best-effort — archival never blocks processing).
-	s3Key := p.archive(ctx, msg)
+// msgResult is one message's transform output: log rows plus ungated error
+// candidates (rate limiting is applied once per fingerprint for the whole cycle).
+type msgResult struct {
+	logs       []repository.LogRow
+	candidates []errorCandidate
+}
 
-	// 2. Parse OTLP into normalized records.
+type errorCandidate struct {
+	fingerprint string
+	row         repository.ErrorEventRow
+}
+
+// TransformBatch transforms a cycle of messages. Raw payloads are archived as ONE
+// object for the whole cycle; messages are transformed in parallel (bounded by
+// poolSize) with a shared per-cycle fingerprint→issueID memo; then the rate limit
+// is applied once per distinct fingerprint (one Redis op per fingerprint, not per
+// event).
+func (p *processorService) TransformBatch(ctx context.Context, msgs []dto.LogIngestMessage) (services.TransformResult, error) {
+	s3Key := p.archiveBatch(ctx, msgs)
+
+	perMsg := make([]msgResult, len(msgs))
+	var memo sync.Map // "serviceID:fp" → uint64 issueID
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, p.poolSize)
+	for i := range msgs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			perMsg[i] = p.transformMessage(ctx, msgs[i], s3Key, &memo)
+		}(i)
+	}
+	wg.Wait()
+
+	// Merge in message order.
+	var logs []repository.LogRow
+	var candidates []errorCandidate
+	for _, r := range perMsg {
+		logs = append(logs, r.logs...)
+		candidates = append(candidates, r.candidates...)
+	}
+
+	return services.TransformResult{
+		Logs:        logs,
+		ErrorEvents: p.applyRateLimit(ctx, candidates),
+	}, nil
+}
+
+// applyRateLimit groups error candidates by fingerprint and keeps only those within
+// the limit — one AllowN (one Redis round trip) per distinct fingerprint per cycle.
+func (p *processorService) applyRateLimit(ctx context.Context, candidates []errorCandidate) []repository.ErrorEventRow {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	byFP := make(map[string][]repository.ErrorEventRow)
+	order := make([]string, 0)
+	for _, c := range candidates {
+		if _, ok := byFP[c.fingerprint]; !ok {
+			order = append(order, c.fingerprint)
+		}
+		byFP[c.fingerprint] = append(byFP[c.fingerprint], c.row)
+	}
+
+	var kept []repository.ErrorEventRow
+	for _, fp := range order {
+		rows := byFP[fp]
+		allowed := p.limiter.AllowN(ctx, fp, len(rows))
+		if allowed > len(rows) {
+			allowed = len(rows)
+		}
+		kept = append(kept, rows[:allowed]...)
+	}
+	return kept
+}
+
+func (p *processorService) transformMessage(ctx context.Context, msg dto.LogIngestMessage, s3Key string, memo *sync.Map) msgResult {
 	records, err := otlp.Flatten(msg.Payload)
 	if err != nil {
-		return fmt.Errorf("flatten otlp: %w", err)
+		log.Printf("flatten otlp (service=%d): %v", msg.ServiceID, err)
+		return msgResult{}
 	}
 
 	ingestedAt := time.Now().UTC()
-	logRows := make([]repository.LogRow, 0, len(records))
-	var errorRows []repository.ErrorEventRow
+	res := msgResult{logs: make([]repository.LogRow, 0, len(records))}
 
 	for _, rec := range records {
 		logRow := toLogRow(rec, msg)
@@ -66,41 +142,62 @@ func (p *processorService) Process(ctx context.Context, msg dto.LogIngestMessage
 			frames := fingerprint.ParseStacktrace(rec.RawStacktrace)
 			fp := fingerprint.Compute(rec.ExceptionType, rec.ExceptionMessage, frames, rec.FingerprintHint)
 
-			issue, err := p.resolveIssue(ctx, msg.ServiceID, fp, rec, frames)
-			if err != nil {
-				log.Printf("resolve issue (fp=%s): %v", fp, err)
-			} else {
-				logRow.IssueID = issue.ID
-				// Rate limit gates only the fat error_events row; the log row (and
-				// therefore the counts) is always written.
-				if p.allowErrorEvent(ctx, fp) {
-					errorRows = append(errorRows, toErrorEventRow(rec, issue.ID, msg, frames, ingestedAt, s3Key))
-				}
+			issueID := p.resolveIssueMemo(ctx, msg.ServiceID, fp, rec, frames, memo)
+			if issueID != 0 {
+				logRow.IssueID = issueID
+				// Ungated candidate; the cycle-level rate limit decides which survive.
+				res.candidates = append(res.candidates, errorCandidate{
+					fingerprint: fp,
+					row:         toErrorEventRow(rec, issueID, msg, frames, ingestedAt, s3Key),
+				})
 			}
 		}
 
-		logRows = append(logRows, logRow)
+		res.logs = append(res.logs, logRow)
 	}
-
-	if err := p.logs.InsertBatch(ctx, logRows); err != nil {
-		return fmt.Errorf("insert logs: %w", err)
-	}
-	if err := p.errorEvents.InsertBatch(ctx, errorRows); err != nil {
-		return fmt.Errorf("insert error_events: %w", err)
-	}
-	return nil
+	return res
 }
 
-func (p *processorService) archive(ctx context.Context, msg dto.LogIngestMessage) string {
-	key := fmt.Sprintf("%d/%s/%s.json", msg.ServiceID, msg.ReceivedAt.Format("2006/01/02"), uuid.NewString())
-	if err := p.s3.Put(ctx, key, msg.Payload, "application/json"); err != nil {
-		log.Printf("archive to s3 failed (continuing): %v", err)
+// archiveBatch stores every raw payload in the cycle as one newline-delimited JSON
+// object (best-effort). All error rows in the cycle reference its key.
+func (p *processorService) archiveBatch(ctx context.Context, msgs []dto.LogIngestMessage) string {
+	if len(msgs) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	for _, m := range msgs {
+		buf.Write(m.Payload)
+		buf.WriteByte('\n')
+	}
+	key := fmt.Sprintf("raw/%s/%s.ndjson", msgs[0].ReceivedAt.Format("2006/01/02"), uuid.NewString())
+	if err := p.store.Put(ctx, key, buf.Bytes(), "application/x-ndjson"); err != nil {
+		log.Printf("archive batch failed (continuing): %v", err)
 		return ""
 	}
 	return key
 }
 
-func (p *processorService) resolveIssue(ctx context.Context, serviceID uint64, fp string, rec otlp.NormalizedLog, frames []dbdto.StackFrame) (*dbdto.Issue, error) {
+func (p *processorService) resolveIssueMemo(ctx context.Context, serviceID uint64, fp string, rec otlp.NormalizedLog, frames []dbdto.StackFrame, memo *sync.Map) uint64 {
+	key := strconv.FormatUint(serviceID, 10) + ":" + fp
+	if v, ok := memo.Load(key); ok {
+		return v.(uint64)
+	}
+
+	id, err := p.resolveIssue(ctx, serviceID, fp, rec, frames)
+	if err != nil {
+		log.Printf("resolve issue (fp=%s): %v", fp, err)
+		return 0
+	}
+	memo.Store(key, id)
+	return id
+}
+
+func (p *processorService) resolveIssue(ctx context.Context, serviceID uint64, fp string, rec otlp.NormalizedLog, frames []dbdto.StackFrame) (uint64, error) {
+	// Fast path: a known fingerprint skips MySQL entirely (cross-cycle cache).
+	if id, ok := p.cache.Get(ctx, serviceID, fp); ok {
+		return id, nil
+	}
+
 	top := frames
 	if len(top) > metadataFrames {
 		top = top[:metadataFrames]
@@ -125,34 +222,18 @@ func (p *processorService) resolveIssue(ctx context.Context, serviceID uint64, f
 
 	resolved, created, err := p.issues.ResolveOrCreate(ctx, issue)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if !created {
-		// Reopen a resolved issue that has recurred.
 		if regressed, err := p.issues.MarkRegressed(ctx, resolved.ID); err != nil {
 			log.Printf("regression check (issue=%d): %v", resolved.ID, err)
 		} else if regressed {
 			log.Printf("issue %d regressed", resolved.ID)
 		}
 	}
-	return resolved, nil
-}
 
-// allowErrorEvent applies a per-fingerprint fixed-window rate limit. Redis is
-// degradable: if unavailable we allow the write rather than drop fidelity.
-func (p *processorService) allowErrorEvent(ctx context.Context, fp string) bool {
-	if p.redis == nil || p.redis.RDB == nil {
-		return true
-	}
-	key := fmt.Sprintf("ratelimit:%s:%d", fp, time.Now().Unix())
-	n, err := p.redis.RDB.Incr(ctx, key).Result()
-	if err != nil {
-		return true
-	}
-	if n == 1 {
-		p.redis.RDB.Expire(ctx, key, 2*time.Second)
-	}
-	return n <= rateLimitPerSecond
+	p.cache.Set(ctx, serviceID, fp, resolved.ID)
+	return resolved.ID, nil
 }
 
 func toLogRow(rec otlp.NormalizedLog, msg dto.LogIngestMessage) repository.LogRow {

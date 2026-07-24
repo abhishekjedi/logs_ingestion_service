@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"error-logging/di"
+	kafkaclient "error-logging/pkg/client/kafka"
 	mysqlclient "error-logging/pkg/client/mysql"
 	redisclient "error-logging/pkg/client/redis"
 	"error-logging/pkg/config"
@@ -45,9 +46,11 @@ func startServer(
 	appCfg config.AppConfig,
 	mysqlC *mysqlclient.Client,
 	redisC *redisclient.Client,
+	kafkaC *kafkaclient.Client,
 ) error {
-	// Release connection pools on every exit path once the server has drained.
-	defer closeResources(mysqlC, redisC)
+	// Release pools and flush the async Kafka writer on every exit path once the
+	// server has drained.
+	defer closeResources(mysqlC, redisC, kafkaC)
 
 	srv := &http.Server{
 		Addr:    appCfg.Addr(),

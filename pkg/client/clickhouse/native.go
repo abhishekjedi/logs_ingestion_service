@@ -26,6 +26,16 @@ func NewNativeClient(cfg config.ClickhouseConfig) (*NativeClient, error) {
 			Username: cfg.User,
 			Password: cfg.Password,
 		},
+		// Async inserts let ClickHouse coalesce many small concurrent inserts into
+		// large parts server-side, avoiding the "too many parts" throttle under a
+		// high-concurrency writer. wait_for_async_insert=1 keeps it durable: Send
+		// returns once the row is flushed into a part.
+		Settings: clickhouse.Settings{
+			"async_insert":          1,
+			"wait_for_async_insert": 1,
+		},
+		MaxOpenConns: 32,
+		MaxIdleConns: 16,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open clickhouse native: %w", err)

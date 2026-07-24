@@ -99,8 +99,28 @@ services:
         until kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
           echo 'waiting for kafka...'; sleep 2;
         done
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic error-logs --partitions 6 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic error-logs --partitions ${KAFKA_PARTITIONS:-6} --replication-factor 1
         echo 'kafka topic ready'
+
+  # Containerized worker (opt-in: `docker compose --profile apps up worker`).
+  # Demonstrates the memory-limit deployment pattern; the mem_limit is the hard
+  # cgroup cap and GOMEMLIMIT is set below it so the GC defends the ceiling first.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    profiles: ["apps"]
+    depends_on:
+      - mysql
+      - redis
+      - clickhouse
+      - kafka
+      - minio
+    environment:
+      GOMEMLIMIT: 450MiB
+    mem_limit: 512m
+    volumes:
+      - ./config.docker.yaml:/app/config.yaml:ro
 
 volumes:
   mysql_data:

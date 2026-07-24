@@ -2,19 +2,27 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
+	"math"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 
 	"error-logging/di"
-	"error-logging/dto"
 	kafkaclient "error-logging/pkg/client/kafka"
 	"error-logging/services"
 )
 
 func main() {
 	log.Println("Starting Worker for error logging")
+
+	// Surface the effective soft memory limit. Set GOMEMLIMIT (env, or the
+	// container's) to make the GC defend a ceiling instead of risking an OOM.
+	if limit := debug.SetMemoryLimit(-1); limit == math.MaxInt64 {
+		log.Println("GOMEMLIMIT: unset (unlimited) — set GOMEMLIMIT to bound worker memory")
+	} else {
+		log.Printf("GOMEMLIMIT: %d bytes", limit)
+	}
 
 	container := di.BuildWorkerContainer()
 
@@ -23,9 +31,10 @@ func main() {
 	}
 }
 
-// runWorker consumes ingest messages and processes each through the pipeline until
-// a shutdown signal arrives, then closes the Kafka client.
-func runWorker(client *kafkaclient.Client, processor services.ProcessorService) error {
+// runWorker runs the batch consumer until a shutdown signal arrives, then closes
+// Kafka. The consumer finishes any in-flight cycle on a detached context, so no
+// buffered work is lost on a graceful stop.
+func runWorker(consumer services.BatchConsumer, client *kafkaclient.Client) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -35,28 +44,5 @@ func runWorker(client *kafkaclient.Client, processor services.ProcessorService) 
 		}
 	}()
 
-	log.Println("Worker started, consuming messages...")
-	for {
-		m, err := client.Reader.ReadMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				log.Println("shutdown signal received, stopping worker")
-				return nil
-			}
-			log.Printf("error reading message: %v", err)
-			continue
-		}
-
-		var msg dto.LogIngestMessage
-		if err := json.Unmarshal(m.Value, &msg); err != nil {
-			log.Printf("skipping malformed message: %v", err)
-			continue
-		}
-
-		if err := processor.Process(ctx, msg); err != nil {
-			log.Printf("process message (service=%d): %v", msg.ServiceID, err)
-			continue
-		}
-		log.Printf("processed batch service=%d project=%d", msg.ServiceID, msg.ProjectID)
-	}
+	return consumer.Run(ctx)
 }

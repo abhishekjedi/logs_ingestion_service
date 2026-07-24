@@ -1,22 +1,32 @@
+# Config for running the app *inside* docker-compose, where dependencies are
+# reached by service name (not localhost). Mount this over /app/config.yaml.
 app:
   base_url: http://localhost:8080
   port: "8080"
 
+worker:
+  pool_size: 16
+  fetch_max_messages: 500
+  fetch_max_bytes: 33554432
+  fetch_max_wait: 200ms
+  flush_chunk_rows: 50000
+  flush_retries: 3
+
 mysql:
-  host: localhost
+  host: mysql
   port: "3306"
   user: root
   password: ""
   dbname: error_logging
 
 redis:
-  host: localhost
+  host: redis
   port: "6379"
   password: ""
   db: 0
 
 clickhouse:
-  host: localhost
+  host: clickhouse
   port: "9000"
   user: default
   password: ""
@@ -24,20 +34,12 @@ clickhouse:
 
 kafka:
   brokers:
-    - localhost:9092
+    - kafka:29092
   group_id: error-logging-worker
   topic: error-logs
 
-worker:
-  pool_size: 16
-  fetch_max_messages: 500
-  fetch_max_bytes: 33554432   # 32 MiB — bounds cycle memory by size, not just count
-  fetch_max_wait: 200ms
-  flush_chunk_rows: 50000     # cap rows per ClickHouse insert
-  flush_retries: 3
-
 s3:
-  endpoint: localhost:9002
+  endpoint: minio:9000
   access_key: minioadmin
   secret_key: minioadmin
   bucket: error-logging-raw
