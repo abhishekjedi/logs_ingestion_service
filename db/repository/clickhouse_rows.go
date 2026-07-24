@@ -28,13 +28,15 @@ type LogRow struct {
 	ResourceAttributes map[string]string
 }
 
-// ErrorEventFrame mirrors the ClickHouse stack_frames Tuple element.
+// ErrorEventFrame mirrors the ClickHouse stack_frames Tuple element. The `ch` tags
+// let clickhouse-go scan the named tuple back into this struct on reads (writes use
+// positional tuples, so the tags are inert there).
 type ErrorEventFrame struct {
-	File     string
-	Function string
-	Line     uint32
-	Col      uint32
-	InApp    uint8
+	File     string `ch:"file"`
+	Function string `ch:"function"`
+	Line     uint32 `ch:"line"`
+	Col      uint32 `ch:"col"`
+	InApp    uint8  `ch:"in_app"`
 }
 
 // ErrorEventRow is one full-fidelity row for the `error_events` table.

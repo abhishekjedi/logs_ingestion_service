@@ -33,3 +33,21 @@ func (m *IssueRepository) MarkRegressed(ctx context.Context, id uint64) (bool, e
 func (m *IssueRepository) UpdateStatsBatch(ctx context.Context, updates []repository.IssueStatsUpdate) error {
 	return m.Called(ctx, updates).Error(0)
 }
+
+func (m *IssueRepository) List(ctx context.Context, filter repository.IssueListFilter) ([]dbdto.Issue, int64, error) {
+	args := m.Called(ctx, filter)
+	var issues []dbdto.Issue
+	if v := args.Get(0); v != nil {
+		issues = v.([]dbdto.Issue)
+	}
+	return issues, int64(args.Int(1)), args.Error(2)
+}
+
+func (m *IssueRepository) GetByID(ctx context.Context, id uint64) (*dbdto.Issue, error) {
+	args := m.Called(ctx, id)
+	var issue *dbdto.Issue
+	if v := args.Get(0); v != nil {
+		issue = v.(*dbdto.Issue)
+	}
+	return issue, args.Error(1)
+}

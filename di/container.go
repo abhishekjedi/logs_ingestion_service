@@ -32,17 +32,22 @@ func BuildContainer() *dig.Container {
 	container.Provide(mysqlclient.NewClient)
 	container.Provide(provideRedis)
 	container.Provide(chclient.NewClient)
+	container.Provide(chclient.NewNativeClient)
 	container.Provide(kafkaclient.NewClient)
 	container.Provide(s3client.NewClient)
 
 	// Repositories
 	container.Provide(repositoryimpl.NewProjectRepository)
 	container.Provide(repositoryimpl.NewServiceRepository)
+	container.Provide(repositoryimpl.NewIssueRepository)
+	container.Provide(repositoryimpl.NewAnalyticsRepository)
 
 	// Services
 	container.Provide(serviceimpl.NewProjectService)
 	container.Provide(serviceimpl.NewServiceService)
 	container.Provide(serviceimpl.NewIngestService)
+	container.Provide(serviceimpl.NewIssueService)
+	container.Provide(serviceimpl.NewAnalyticsService)
 
 	// Middleware
 	container.Provide(middleware.NewAPIKeyAuth)
@@ -52,14 +57,24 @@ func BuildContainer() *dig.Container {
 	container.Provide(controllerimpl.NewProjectController)
 	container.Provide(controllerimpl.NewServiceController)
 	container.Provide(controllerimpl.NewIngestController)
+	container.Provide(controllerimpl.NewIssueController)
+	container.Provide(controllerimpl.NewAnalyticsController)
 
 	// Routers
 	container.Provide(router.NewHealthRouter)
 	container.Provide(router.NewProjectRouter)
 	container.Provide(router.NewIngestRouter)
-	container.Provide(func(hr *router.HealthRouter, pr *router.ProjectRouter, ir *router.IngestRouter) *router.Router {
+	container.Provide(router.NewIssueRouter)
+	container.Provide(router.NewAnalyticsRouter)
+	container.Provide(func(
+		health *router.HealthRouter,
+		project *router.ProjectRouter,
+		ingest *router.IngestRouter,
+		issue *router.IssueRouter,
+		analytics *router.AnalyticsRouter,
+	) *router.Router {
 		return &router.Router{
-			Routes: []dto.Route{hr, pr, ir},
+			Routes: []dto.Route{health, project, ingest, issue, analytics},
 		}
 	})
 
