@@ -29,3 +29,7 @@ func (m *IssueRepository) MarkRegressed(ctx context.Context, id uint64) (bool, e
 	args := m.Called(ctx, id)
 	return args.Bool(0), args.Error(1)
 }
+
+func (m *IssueRepository) UpdateStatsBatch(ctx context.Context, updates []repository.IssueStatsUpdate) error {
+	return m.Called(ctx, updates).Error(0)
+}

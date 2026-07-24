@@ -42,6 +42,27 @@ func (r *issueRepository) ResolveOrCreate(ctx context.Context, issue *dbdto.Issu
 	return &out, created, nil
 }
 
+func (r *issueRepository) UpdateStatsBatch(ctx context.Context, updates []repository.IssueStatsUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, u := range updates {
+			if err := tx.Model(&dbdto.Issue{}).
+				Where("id = ?", u.IssueID).
+				Updates(map[string]any{
+					"event_count":                u.EventCount,
+					"affected_users_estimate":    u.AffectedUsers,
+					"affected_sessions_estimate": u.AffectedSessions,
+					"last_seen":                  u.LastSeen,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (r *issueRepository) MarkRegressed(ctx context.Context, id uint64) (bool, error) {
 	res := r.db.WithContext(ctx).
 		Model(&dbdto.Issue{}).

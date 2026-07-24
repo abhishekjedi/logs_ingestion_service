@@ -38,6 +38,11 @@ kafka:
   group_id: error-logging-worker
   topic: error-logs
 
+sync:
+  interval: 10s
+  active_window: 2h
+  batch_size: 500
+
 s3:
   endpoint: minio:9000
   access_key: minioadmin
