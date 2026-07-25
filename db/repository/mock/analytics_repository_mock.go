@@ -51,3 +51,12 @@ func (m *AnalyticsRepository) RecentErrorEvents(ctx context.Context, issueID uin
 	}
 	return out, args.Error(1)
 }
+
+func (m *AnalyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+	args := m.Called(ctx, serviceID, sessionID, before, limit)
+	var out []repository.Breadcrumb
+	if v := args.Get(0); v != nil {
+		out = v.([]repository.Breadcrumb)
+	}
+	return out, args.Error(1)
+}

@@ -12,5 +12,5 @@ import (
 type ProjectRepository interface {
 	Create(ctx context.Context, project *dbdto.Project) error
 	GetByID(ctx context.Context, id uint64) (*dbdto.Project, error)
-	List(ctx context.Context) ([]dbdto.Project, error)
+	ListByOrg(ctx context.Context, orgID uint64) ([]dbdto.Project, error)
 }

@@ -30,9 +30,9 @@ func (r *projectRepository) GetByID(ctx context.Context, id uint64) (*dbdto.Proj
 	return &project, nil
 }
 
-func (r *projectRepository) List(ctx context.Context) ([]dbdto.Project, error) {
+func (r *projectRepository) ListByOrg(ctx context.Context, orgID uint64) ([]dbdto.Project, error) {
 	var projects []dbdto.Project
-	if err := r.db.WithContext(ctx).Order("id DESC").Find(&projects).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("org_id = ?", orgID).Order("id DESC").Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil

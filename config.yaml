@@ -1,6 +1,17 @@
 app:
   base_url: http://localhost:8080
   port: "8080"
+  frontend_url: http://localhost:5173
+
+auth:
+  jwt_secret: dev-insecure-secret-change-me
+  token_ttl: 24h
+  cookie_name: errlog_session
+  cookie_secure: false
+  # Google OAuth — configure these in the gitignored config.local.yaml:
+  #   google_client_id: <your-id>.apps.googleusercontent.com
+  #   google_client_secret: <your-secret>
+  #   google_redirect_url: http://localhost:8080/api/auth/google/callback
 
 mysql:
   host: localhost

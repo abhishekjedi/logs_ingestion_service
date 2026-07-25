@@ -20,11 +20,13 @@ var (
 	reQuoted = regexp.MustCompile(`'[^']*'|"[^"]*"`)
 	reUUID   = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 	reHex    = regexp.MustCompile(`0x[0-9a-fA-F]+`)
-	reNum    = regexp.MustCompile(`\d+`)
-	// Go/JS style: "path/to/file.ext:123"
+	reNum = regexp.MustCompile(`\d+`)
+	// JS/Node with function: at Func.name (path/to/file.js:12:5)
+	reFrameJS = regexp.MustCompile(`at\s+(\S+)\s+\(([\w./\\-]+\.\w+):(\d+)`)
+	// Bare "path/to/file.ext:123" (Go, or JS without a named function)
 	reFrame = regexp.MustCompile(`([\w./\\-]+\.\w+):(\d+)`)
-	// Python style: File "path/to/file.py", line 123
-	reFramePy = regexp.MustCompile(`File "([^"]+)", line (\d+)`)
+	// Python: File "path/to/file.py", line 123, in func
+	reFramePy = regexp.MustCompile(`File "([^"]+)", line (\d+)(?:, in (\S+))?`)
 )
 
 // Compute returns the fingerprint for an error. A caller-supplied hint (the
@@ -66,26 +68,41 @@ func NormalizeMessage(msg string) string {
 }
 
 // ParseStacktrace best-effort-extracts structured frames from a raw stack trace.
-// It is language-agnostic: it pulls out "file.ext:line" occurrences. Function names
-// are left empty when not confidently identifiable.
+// It recognizes Python ("File ..., line N, in func"), JS/Node ("at func (file:line)")
+// and bare "file.ext:line" forms, capturing function names where the format exposes
+// them and leaving Function empty otherwise.
 func ParseStacktrace(raw string) []dbdto.StackFrame {
 	if raw == "" {
 		return nil
 	}
-	// Python "File \"x\", line N" first; if none, fall back to Go/JS "file.ext:line".
-	matches := reFramePy.FindAllStringSubmatch(raw, -1)
-	if len(matches) == 0 {
-		matches = reFrame.FindAllStringSubmatch(raw, -1)
+	var frames []dbdto.StackFrame
+
+	// Python: File "path", line N, in func
+	for _, m := range reFramePy.FindAllStringSubmatch(raw, -1) {
+		line, _ := strconv.ParseUint(m[2], 10, 32)
+		fn := ""
+		if len(m) > 3 {
+			fn = m[3]
+		}
+		frames = append(frames, dbdto.StackFrame{File: m[1], Function: fn, Line: uint32(line), InApp: true})
+	}
+	if len(frames) > 0 {
+		return frames
 	}
 
-	var frames []dbdto.StackFrame
-	for _, m := range matches {
+	// JS/Node: at func (file:line)
+	for _, m := range reFrameJS.FindAllStringSubmatch(raw, -1) {
+		line, _ := strconv.ParseUint(m[3], 10, 32)
+		frames = append(frames, dbdto.StackFrame{Function: m[1], File: m[2], Line: uint32(line), InApp: true})
+	}
+	if len(frames) > 0 {
+		return frames
+	}
+
+	// Bare file.ext:line
+	for _, m := range reFrame.FindAllStringSubmatch(raw, -1) {
 		line, _ := strconv.ParseUint(m[2], 10, 32)
-		frames = append(frames, dbdto.StackFrame{
-			File:  m[1],
-			Line:  uint32(line),
-			InApp: true,
-		})
+		frames = append(frames, dbdto.StackFrame{File: m[1], Line: uint32(line), InApp: true})
 	}
 	return frames
 }

@@ -45,6 +45,13 @@ func kInt(k *koanf.Koanf, key string, def int) int {
 	return def
 }
 
+func kBool(k *koanf.Koanf, key string, def bool) bool {
+	if k.Exists(key) {
+		return k.Bool(key)
+	}
+	return def
+}
+
 func kDuration(k *koanf.Koanf, key string, def time.Duration) time.Duration {
 	if k.Exists(key) {
 		if d := k.Duration(key); d > 0 {

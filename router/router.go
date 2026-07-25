@@ -8,15 +8,19 @@ import (
 
 type Router struct {
 	Routes []dto.Route
+	CORS   gin.HandlerFunc
 }
 
 func (r *Router) Setup() *gin.Engine {
-	router := gin.Default()
-	api := router.Group("/api")
+	engine := gin.Default()
+	if r.CORS != nil {
+		engine.Use(r.CORS)
+	}
 
+	api := engine.Group("/api")
 	for _, route := range r.Routes {
 		route.Register(api)
 	}
 
-	return router
+	return engine
 }

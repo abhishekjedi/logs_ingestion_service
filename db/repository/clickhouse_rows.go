@@ -32,11 +32,11 @@ type LogRow struct {
 // let clickhouse-go scan the named tuple back into this struct on reads (writes use
 // positional tuples, so the tags are inert there).
 type ErrorEventFrame struct {
-	File     string `ch:"file"`
-	Function string `ch:"function"`
-	Line     uint32 `ch:"line"`
-	Col      uint32 `ch:"col"`
-	InApp    uint8  `ch:"in_app"`
+	File     string `ch:"file" json:"file"`
+	Function string `ch:"function" json:"function"`
+	Line     uint32 `ch:"line" json:"line"`
+	Col      uint32 `ch:"col" json:"col"`
+	InApp    uint8  `ch:"in_app" json:"in_app"`
 }
 
 // ErrorEventRow is one full-fidelity row for the `error_events` table.

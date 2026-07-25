@@ -12,17 +12,26 @@ import (
 )
 
 type issueController struct {
-	svc services.IssueService
+	svc   services.IssueService
+	authz services.AuthzService
 }
 
-func NewIssueController(svc services.IssueService) controllers.IssueController {
-	return &issueController{svc: svc}
+func NewIssueController(svc services.IssueService, authz services.AuthzService) controllers.IssueController {
+	return &issueController{svc: svc, authz: authz}
 }
 
 func (ctl *issueController) ListIssues(c *context.ApiContext) {
+	userID, ok := currentUser(c)
+	if !ok {
+		return
+	}
 	serviceID, ok := uintParam(c, "service_id")
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid service id"})
+		return
+	}
+	if err := ctl.authz.RequireServiceAccess(c.Request.Context(), userID, serviceID); err != nil {
+		respondErr(c, err)
 		return
 	}
 
@@ -39,7 +48,7 @@ func (ctl *issueController) ListIssues(c *context.ApiContext) {
 
 	res, err := ctl.svc.ListIssues(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
 
@@ -52,44 +61,61 @@ func (ctl *issueController) ListIssues(c *context.ApiContext) {
 }
 
 func (ctl *issueController) GetIssue(c *context.ApiContext) {
-	id, ok := uintParam(c, "issue_id")
+	userID, id, ok := ctl.issueAccess(c)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issue id"})
 		return
 	}
 	issue, err := ctl.svc.GetIssue(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "issue not found"})
+		respondErr(c, err)
 		return
 	}
+	_ = userID
 	c.JSON(http.StatusOK, gin.H{"issue": issue})
 }
 
 func (ctl *issueController) GetTimeseries(c *context.ApiContext) {
-	id, ok := uintParam(c, "issue_id")
+	_, id, ok := ctl.issueAccess(c)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issue id"})
 		return
 	}
 	from, to := parseTimeRange(c)
 	points, err := ctl.svc.GetTimeseries(c.Request.Context(), id, from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"points": points})
 }
 
 func (ctl *issueController) GetEvents(c *context.ApiContext) {
-	id, ok := uintParam(c, "issue_id")
+	_, id, ok := ctl.issueAccess(c)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issue id"})
 		return
 	}
 	events, err := ctl.svc.GetEvents(c.Request.Context(), id, queryInt(c, "limit", 50))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"events": events})
+}
+
+// issueAccess resolves the caller + issue id and enforces access, writing the
+// appropriate error response and returning ok=false on failure.
+func (ctl *issueController) issueAccess(c *context.ApiContext) (userID, issueID uint64, ok bool) {
+	userID, ok = currentUser(c)
+	if !ok {
+		return 0, 0, false
+	}
+	issueID, ok = uintParam(c, "issue_id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issue id"})
+		return 0, 0, false
+	}
+	if err := ctl.authz.RequireIssueAccess(c.Request.Context(), userID, issueID); err != nil {
+		respondErr(c, err)
+		return 0, 0, false
+	}
+	return userID, issueID, true
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type ProjectService interface {
-	CreateProject(ctx context.Context, req dto.CreateProjectRequest) (*dbdto.Project, error)
+	CreateProject(ctx context.Context, orgID, ownerID uint64, req dto.CreateProjectRequest) (*dbdto.Project, error)
 	GetProject(ctx context.Context, id uint64) (*dbdto.Project, error)
-	ListProjects(ctx context.Context) ([]dbdto.Project, error)
+	ListProjects(ctx context.Context, orgID uint64) ([]dbdto.Project, error)
 }

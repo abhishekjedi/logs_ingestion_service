@@ -19,4 +19,5 @@ type ReleaseHealthPoint struct {
 type AnalyticsService interface {
 	GetServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ServiceOverviewPoint, error)
 	GetReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]ReleaseHealthPoint, error)
+	GetBreadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error)
 }

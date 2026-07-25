@@ -24,3 +24,6 @@ Thumbs.db
 
 # Environment
 .env
+
+# local secrets overlay
+config.local.yaml

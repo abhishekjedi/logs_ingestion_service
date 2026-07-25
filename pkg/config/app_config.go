@@ -9,6 +9,8 @@ type AppConfig struct {
 	BaseURL string
 	// Port is the TCP port the HTTP server listens on.
 	Port string
+	// FrontendURL is the dashboard origin allowed by CORS (with credentials).
+	FrontendURL string
 }
 
 func NewAppConfig(k *koanf.Koanf) AppConfig {
@@ -20,7 +22,11 @@ func NewAppConfig(k *koanf.Koanf) AppConfig {
 	if port == "" {
 		port = "8080"
 	}
-	return AppConfig{BaseURL: base, Port: port}
+	frontend := k.String("app.frontend_url")
+	if frontend == "" {
+		frontend = "http://localhost:5173"
+	}
+	return AppConfig{BaseURL: base, Port: port, FrontendURL: frontend}
 }
 
 // Addr returns the listen address, e.g. ":8080".

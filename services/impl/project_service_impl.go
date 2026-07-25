@@ -17,10 +17,11 @@ func NewProjectService(projects repository.ProjectRepository) services.ProjectSe
 	return &projectService{projects: projects}
 }
 
-func (s *projectService) CreateProject(ctx context.Context, req dto.CreateProjectRequest) (*dbdto.Project, error) {
+func (s *projectService) CreateProject(ctx context.Context, orgID, ownerID uint64, req dto.CreateProjectRequest) (*dbdto.Project, error) {
 	project := &dbdto.Project{
+		OrgID:   &orgID,
+		OwnerID: &ownerID,
 		Name:    req.Name,
-		OwnerID: req.OwnerID,
 	}
 	if err := s.projects.Create(ctx, project); err != nil {
 		return nil, err
@@ -32,6 +33,6 @@ func (s *projectService) GetProject(ctx context.Context, id uint64) (*dbdto.Proj
 	return s.projects.GetByID(ctx, id)
 }
 
-func (s *projectService) ListProjects(ctx context.Context) ([]dbdto.Project, error) {
-	return s.projects.List(ctx)
+func (s *projectService) ListProjects(ctx context.Context, orgID uint64) ([]dbdto.Project, error) {
+	return s.projects.ListByOrg(ctx, orgID)
 }

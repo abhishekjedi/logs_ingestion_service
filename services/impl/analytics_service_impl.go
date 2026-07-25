@@ -41,3 +41,17 @@ func (s *analyticsService) GetReleaseHealth(ctx context.Context, serviceID uint6
 	}
 	return out, nil
 }
+
+func (s *analyticsService) GetBreadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+	if sessionID == "" {
+		return []repository.Breadcrumb{}, nil
+	}
+	rows, err := s.analytics.Breadcrumbs(ctx, serviceID, sessionID, before, limit)
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		rows = []repository.Breadcrumb{}
+	}
+	return rows, nil
+}

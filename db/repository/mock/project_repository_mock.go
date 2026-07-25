@@ -31,8 +31,8 @@ func (m *ProjectRepository) GetByID(ctx context.Context, id uint64) (*dbdto.Proj
 	return project, args.Error(1)
 }
 
-func (m *ProjectRepository) List(ctx context.Context) ([]dbdto.Project, error) {
-	args := m.Called(ctx)
+func (m *ProjectRepository) ListByOrg(ctx context.Context, orgID uint64) ([]dbdto.Project, error) {
+	args := m.Called(ctx, orgID)
 	var projects []dbdto.Project
 	if v := args.Get(0); v != nil {
 		projects = v.([]dbdto.Project)

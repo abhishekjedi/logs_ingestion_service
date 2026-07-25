@@ -97,7 +97,8 @@ GROUP BY release ORDER BY release`
 func (r *analyticsRepository) RecentErrorEvents(ctx context.Context, issueID uint64, limit int) ([]repository.ErrorEventDetail, error) {
 	const q = `
 SELECT toString(event_id), timestamp, severity_text, exception_type, exception_message,
-       user_id, session_id, environment, release, trace_id, span_id, stack_frames
+       user_id, session_id, environment, release, trace_id, span_id, stack_frames,
+       attributes, resource_attributes
 FROM error_events
 WHERE issue_id = ?
 ORDER BY timestamp DESC
@@ -115,10 +116,36 @@ LIMIT ?`
 		if err := rows.Scan(
 			&e.EventID, &e.Timestamp, &e.SeverityText, &e.ExceptionType, &e.ExceptionMessage,
 			&e.UserID, &e.SessionID, &e.Environment, &e.Release, &e.TraceID, &e.SpanID, &e.StackFrames,
+			&e.Attributes, &e.ResourceAttributes,
 		); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (r *analyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+	const q = `
+SELECT timestamp, severity_text, body, exception_type
+FROM logs
+WHERE service_id = ? AND session_id = ? AND timestamp <= ?
+ORDER BY timestamp DESC
+LIMIT ?`
+
+	rows, err := r.conn.Conn.Query(ctx, q, serviceID, sessionID, before, limit)
+	if err != nil {
+		return nil, fmt.Errorf("breadcrumbs: %w", err)
+	}
+	defer rows.Close()
+
+	var out []repository.Breadcrumb
+	for rows.Next() {
+		var b repository.Breadcrumb
+		if err := rows.Scan(&b.Timestamp, &b.SeverityText, &b.Body, &b.ExceptionType); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
 	}
 	return out, rows.Err()
 }
