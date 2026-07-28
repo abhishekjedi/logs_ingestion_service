@@ -20,7 +20,6 @@ import (
 func BuildContainer() *dig.Container {
 	container := dig.New()
 
-	// Configs
 	container.Provide(config.NewDefaultConfigProvider)
 	container.Provide(config.NewAppConfig)
 	container.Provide(config.NewAuthConfig)
@@ -30,7 +29,6 @@ func BuildContainer() *dig.Container {
 	container.Provide(config.NewKafkaConfig)
 	container.Provide(config.NewS3Config)
 
-	// Clients (mysql/clickhouse/kafka required — errors fail startup; redis degradable)
 	container.Provide(mysqlclient.NewClient)
 	container.Provide(provideRedis)
 	container.Provide(chclient.NewClient)
@@ -38,10 +36,8 @@ func BuildContainer() *dig.Container {
 	container.Provide(kafkaclient.NewClient)
 	container.Provide(s3client.NewClient)
 
-	// Session
 	container.Provide(session.NewManager)
 
-	// Repositories
 	container.Provide(repositoryimpl.NewUserRepository)
 	container.Provide(repositoryimpl.NewOrgRepository)
 	container.Provide(repositoryimpl.NewOrgMemberRepository)
@@ -50,7 +46,6 @@ func BuildContainer() *dig.Container {
 	container.Provide(repositoryimpl.NewIssueRepository)
 	container.Provide(repositoryimpl.NewAnalyticsRepository)
 
-	// Services
 	container.Provide(serviceimpl.NewAuthService)
 	container.Provide(serviceimpl.NewAuthzService)
 	container.Provide(serviceimpl.NewOrgService)
@@ -60,12 +55,10 @@ func BuildContainer() *dig.Container {
 	container.Provide(serviceimpl.NewIssueService)
 	container.Provide(serviceimpl.NewAnalyticsService)
 
-	// Middleware
 	container.Provide(middleware.NewAPIKeyAuth)
 	container.Provide(middleware.NewAuthMiddleware)
 	container.Provide(middleware.NewCORS)
 
-	// Controllers
 	container.Provide(controllerimpl.NewHealthController)
 	container.Provide(controllerimpl.NewAuthController)
 	container.Provide(controllerimpl.NewOrgController)
@@ -75,7 +68,6 @@ func BuildContainer() *dig.Container {
 	container.Provide(controllerimpl.NewIssueController)
 	container.Provide(controllerimpl.NewAnalyticsController)
 
-	// Routers
 	container.Provide(router.NewHealthRouter)
 	container.Provide(router.NewAuthRouter)
 	container.Provide(router.NewOrgRouter)

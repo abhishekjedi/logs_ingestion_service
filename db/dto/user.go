@@ -2,7 +2,6 @@ package dto
 
 import "time"
 
-// User is a person who signs in to the dashboard (via Google, or dev-login in dev).
 type User struct {
 	ID        uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Email     string    `gorm:"column:email" json:"email"`

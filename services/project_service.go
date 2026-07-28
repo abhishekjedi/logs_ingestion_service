@@ -1,5 +1,3 @@
-// Package services holds business logic that orchestrates repositories and other
-// clients. Controllers call services; services call repositories.
 package services
 
 import (

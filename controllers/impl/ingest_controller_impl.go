@@ -13,8 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// maxIngestBytes caps a single ingest request body.
-const maxIngestBytes = 10 << 20 // 10 MiB
+const maxIngestBytes = 10 << 20
 
 type ingestController struct {
 	svc services.IngestService
@@ -46,6 +45,5 @@ func (ctl *ingestController) Ingest(c *context.ApiContext) {
 		return
 	}
 
-	// Accepted for async processing; nothing heavy ran on this path.
 	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
 }

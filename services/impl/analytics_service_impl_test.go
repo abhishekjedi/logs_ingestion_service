@@ -6,8 +6,8 @@ import (
 	"time"
 
 	dbdto "error-logging/db/dto"
-	"error-logging/db/repository"
 	repomock "error-logging/db/repository/mock"
+	"error-logging/dto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,7 +16,7 @@ import (
 
 func TestIssueService_ListIssues(t *testing.T) {
 	issues := new(repomock.IssueRepository)
-	filter := repository.IssueListFilter{ServiceID: 3, Limit: 50}
+	filter := dto.IssueListFilter{ServiceID: 3, Limit: 50}
 	issues.On("List", mock.Anything, filter).
 		Return([]dbdto.Issue{{ID: 1}, {ID: 2}}, 2, nil)
 
@@ -30,7 +30,7 @@ func TestIssueService_ListIssues(t *testing.T) {
 func TestIssueService_GetTimeseries(t *testing.T) {
 	analytics := new(repomock.AnalyticsRepository)
 	analytics.On("IssueTimeseries", mock.Anything, uint64(5), mock.Anything, mock.Anything).
-		Return([]repository.TimePoint{{Events: 100, Users: 10}}, nil)
+		Return([]dbdto.TimePoint{{Events: 100, Users: 10}}, nil)
 
 	svc := NewIssueService(new(repomock.IssueRepository), analytics)
 	pts, err := svc.GetTimeseries(context.Background(), 5, time.Now().Add(-time.Hour), time.Now())
@@ -41,9 +41,9 @@ func TestIssueService_GetTimeseries(t *testing.T) {
 
 func TestIssueService_GetEvents_ClampsLimit(t *testing.T) {
 	analytics := new(repomock.AnalyticsRepository)
-	// limit 0 → clamped to 50 before hitting the repo
+
 	analytics.On("RecentErrorEvents", mock.Anything, uint64(5), 50).
-		Return([]repository.ErrorEventDetail{{EventID: "e1"}}, nil)
+		Return([]dbdto.ErrorEventDetail{{EventID: "e1"}}, nil)
 
 	svc := NewIssueService(new(repomock.IssueRepository), analytics)
 	events, err := svc.GetEvents(context.Background(), 5, 0)
@@ -55,7 +55,7 @@ func TestIssueService_GetEvents_ClampsLimit(t *testing.T) {
 func TestAnalyticsService_ReleaseHealth_ComputesCrashFree(t *testing.T) {
 	analytics := new(repomock.AnalyticsRepository)
 	analytics.On("ReleaseHealth", mock.Anything, uint64(3), mock.Anything, mock.Anything).
-		Return([]repository.ReleaseHealth{
+		Return([]dbdto.ReleaseHealth{
 			{Release: "v1", SessionsTotal: 100, SessionsErrored: 5},
 			{Release: "v2", SessionsTotal: 0, SessionsErrored: 0},
 		}, nil)

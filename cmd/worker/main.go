@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"math"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 	"os/signal"
 	"runtime/debug"
 	"syscall"
@@ -16,8 +19,15 @@ import (
 func main() {
 	log.Println("Starting Worker for error logging")
 
-	// Surface the effective soft memory limit. Set GOMEMLIMIT (env, or the
-	// container's) to make the GC defend a ceiling instead of risking an OOM.
+	if addr := os.Getenv("PPROF_ADDR"); addr != "" {
+		go func() {
+			log.Printf("pprof listening on %s", addr)
+			if err := http.ListenAndServe(addr, nil); err != nil {
+				log.Printf("pprof server stopped: %v", err)
+			}
+		}()
+	}
+
 	if limit := debug.SetMemoryLimit(-1); limit == math.MaxInt64 {
 		log.Println("GOMEMLIMIT: unset (unlimited) — set GOMEMLIMIT to bound worker memory")
 	} else {
@@ -31,9 +41,6 @@ func main() {
 	}
 }
 
-// runWorker runs the batch consumer until a shutdown signal arrives, then closes
-// Kafka. The consumer finishes any in-flight cycle on a detached context, so no
-// buffered work is lost on a graceful stop.
 func runWorker(consumer services.BatchConsumer, client *kafkaclient.Client) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthRouter registers the dashboard auth endpoints.
 type AuthRouter struct {
 	AuthController controllers.AuthController
 	Auth           *middleware.AuthMiddleware

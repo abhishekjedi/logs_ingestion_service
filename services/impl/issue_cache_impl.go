@@ -9,9 +9,6 @@ import (
 	"error-logging/services"
 )
 
-// issueCacheTTL bounds how long a fingerprint→issue_id mapping is cached. A TTL
-// (rather than forever) means a resolved issue that recurs is re-checked for
-// regression at most one TTL after it stops being hot.
 const issueCacheTTL = 5 * time.Minute
 
 type issueCache struct {

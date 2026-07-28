@@ -6,6 +6,7 @@ import (
 
 	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
+	"error-logging/dto"
 	"error-logging/services"
 )
 
@@ -21,23 +22,23 @@ func NewIssueService(
 	return &issueService{issues: issues, analytics: analytics}
 }
 
-func (s *issueService) ListIssues(ctx context.Context, filter repository.IssueListFilter) (services.IssueListResult, error) {
+func (s *issueService) ListIssues(ctx context.Context, filter dto.IssueListFilter) (dto.IssueListResult, error) {
 	issues, total, err := s.issues.List(ctx, filter)
 	if err != nil {
-		return services.IssueListResult{}, err
+		return dto.IssueListResult{}, err
 	}
-	return services.IssueListResult{Issues: issues, Total: total}, nil
+	return dto.IssueListResult{Issues: issues, Total: total}, nil
 }
 
 func (s *issueService) GetIssue(ctx context.Context, id uint64) (*dbdto.Issue, error) {
 	return s.issues.GetByID(ctx, id)
 }
 
-func (s *issueService) GetTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]repository.TimePoint, error) {
+func (s *issueService) GetTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]dbdto.TimePoint, error) {
 	return s.analytics.IssueTimeseries(ctx, issueID, from, to)
 }
 
-func (s *issueService) GetEvents(ctx context.Context, issueID uint64, limit int) ([]repository.ErrorEventDetail, error) {
+func (s *issueService) GetEvents(ctx context.Context, issueID uint64, limit int) ([]dbdto.ErrorEventDetail, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}

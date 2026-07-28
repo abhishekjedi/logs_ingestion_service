@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CORS allows the dashboard frontend (a different origin in dev) to call the API
-// with credentials (the session cookie).
 type CORS struct {
 	allowedOrigin string
 }

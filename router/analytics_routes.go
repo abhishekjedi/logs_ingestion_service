@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AnalyticsRouter registers service-level analytics (login required, access checked).
 type AnalyticsRouter struct {
 	AnalyticsController controllers.AnalyticsController
 	Auth                *middleware.AuthMiddleware

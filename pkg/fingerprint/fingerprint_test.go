@@ -9,7 +9,7 @@ import (
 )
 
 func TestNormalizeMessage(t *testing.T) {
-	// Messages differing only by dynamic tokens normalize to the same template.
+
 	a := NormalizeMessage(`cannot find user 12345 with token "abc-def"`)
 	b := NormalizeMessage(`cannot find user 99 with token "xyz"`)
 	assert.Equal(t, a, b)

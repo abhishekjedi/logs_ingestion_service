@@ -7,6 +7,7 @@ import (
 	"error-logging/constants"
 	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
+	"error-logging/dto"
 	mysqlclient "error-logging/pkg/client/mysql"
 
 	"gorm.io/gorm"
@@ -22,8 +23,7 @@ func NewIssueRepository(c *mysqlclient.Client) repository.IssueRepository {
 }
 
 func (r *issueRepository) ResolveOrCreate(ctx context.Context, issue *dbdto.Issue) (*dbdto.Issue, bool, error) {
-	// INSERT ... ON DUPLICATE KEY UPDATE id=id (no-op) so a concurrent first-sighting
-	// never errors; RowsAffected tells us whether we created it.
+
 	res := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(issue)
@@ -32,7 +32,6 @@ func (r *issueRepository) ResolveOrCreate(ctx context.Context, issue *dbdto.Issu
 	}
 	created := res.RowsAffected > 0
 
-	// Fetch the canonical row (ours if created, otherwise the pre-existing one).
 	var out dbdto.Issue
 	if err := r.db.WithContext(ctx).
 		Where("service_id = ? AND fingerprint = ?", issue.ServiceID, issue.Fingerprint).
@@ -42,14 +41,13 @@ func (r *issueRepository) ResolveOrCreate(ctx context.Context, issue *dbdto.Issu
 	return &out, created, nil
 }
 
-// issueSortColumns whitelists sortable columns to keep the ORDER BY injection-safe.
 var issueSortColumns = map[string]string{
 	"event_count": "event_count",
 	"last_seen":   "last_seen",
 	"first_seen":  "first_seen",
 }
 
-func (r *issueRepository) List(ctx context.Context, f repository.IssueListFilter) ([]dbdto.Issue, int64, error) {
+func (r *issueRepository) List(ctx context.Context, f dto.IssueListFilter) ([]dbdto.Issue, int64, error) {
 	q := r.db.WithContext(ctx).Model(&dbdto.Issue{}).Where("service_id = ?", f.ServiceID)
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
@@ -86,7 +84,7 @@ func (r *issueRepository) GetByID(ctx context.Context, id uint64) (*dbdto.Issue,
 	return &issue, nil
 }
 
-func (r *issueRepository) UpdateStatsBatch(ctx context.Context, updates []repository.IssueStatsUpdate) error {
+func (r *issueRepository) UpdateStatsBatch(ctx context.Context, updates []dto.IssueStatsUpdate) error {
 	if len(updates) == 0 {
 		return nil
 	}

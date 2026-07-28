@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ProjectRouter registers project routes (org-nested create/list) and the service
-// routes nested under a project. All require login; access is checked per resource.
 type ProjectRouter struct {
 	ProjectController controllers.ProjectController
 	ServiceController controllers.ServiceController

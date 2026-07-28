@@ -16,17 +16,14 @@ type Client struct {
 	Writer *kafka.Writer
 }
 
-// NewClient builds the Kafka reader and writer. kafka-go connects lazily on first
-// use, so construction itself does not reach the broker.
 func NewClient(cfg config.KafkaConfig) (*Client, error) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: cfg.Brokers,
-		GroupID: cfg.GroupID,
-		Topic:   cfg.Topic,
-		// Fetch many records per poll for throughput.
+		Brokers:  cfg.Brokers,
+		GroupID:  cfg.GroupID,
+		Topic:    cfg.Topic,
 		MinBytes: 1,
 		MaxBytes: 10e6,
-		// Snappier group membership so restarts rebalance quickly.
+
 		SessionTimeout:    6 * time.Second,
 		RebalanceTimeout:  6 * time.Second,
 		HeartbeatInterval: 2 * time.Second,
@@ -57,7 +54,6 @@ func NewClient(cfg config.KafkaConfig) (*Client, error) {
 	return &Client{Reader: reader, Writer: writer}, nil
 }
 
-// Close shuts down the reader and writer, joining any errors.
 func (c *Client) Close() error {
 	var errs []error
 	if c.Reader != nil {

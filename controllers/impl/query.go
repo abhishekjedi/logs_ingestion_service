@@ -7,7 +7,6 @@ import (
 	"error-logging/pkg/context"
 )
 
-// parseTimeRange reads ?from & ?to (RFC3339), defaulting to the last 24h.
 func parseTimeRange(c *context.ApiContext) (from, to time.Time) {
 	to = time.Now().UTC()
 	from = to.Add(-24 * time.Hour)

@@ -15,11 +15,6 @@ import (
 	"error-logging/services"
 )
 
-// The syncer periodically reconciles MySQL issue counters with the ClickHouse
-// rollups. Run one instance; it is idempotent (absolute values), so a duplicate is
-// harmless.
-//
-//	go run ./cmd/syncer
 func main() {
 	log.Println("Starting Syncer for error logging")
 

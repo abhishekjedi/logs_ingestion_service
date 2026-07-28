@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
+	"error-logging/dto"
 	"error-logging/services"
 )
 
@@ -16,23 +18,23 @@ func NewAnalyticsService(analytics repository.AnalyticsRepository) services.Anal
 	return &analyticsService{analytics: analytics}
 }
 
-func (s *analyticsService) GetServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ServiceOverviewPoint, error) {
+func (s *analyticsService) GetServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]dbdto.ServiceOverviewPoint, error) {
 	return s.analytics.ServiceOverview(ctx, serviceID, from, to)
 }
 
-func (s *analyticsService) GetReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]services.ReleaseHealthPoint, error) {
+func (s *analyticsService) GetReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]dto.ReleaseHealthPoint, error) {
 	rows, err := s.analytics.ReleaseHealth(ctx, serviceID, from, to)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]services.ReleaseHealthPoint, 0, len(rows))
+	out := make([]dto.ReleaseHealthPoint, 0, len(rows))
 	for _, r := range rows {
 		rate := 1.0
 		if r.SessionsTotal > 0 {
 			rate = 1 - float64(r.SessionsErrored)/float64(r.SessionsTotal)
 		}
-		out = append(out, services.ReleaseHealthPoint{
+		out = append(out, dto.ReleaseHealthPoint{
 			Release:         r.Release,
 			SessionsTotal:   r.SessionsTotal,
 			SessionsErrored: r.SessionsErrored,
@@ -42,16 +44,16 @@ func (s *analyticsService) GetReleaseHealth(ctx context.Context, serviceID uint6
 	return out, nil
 }
 
-func (s *analyticsService) GetBreadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+func (s *analyticsService) GetBreadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]dbdto.Breadcrumb, error) {
 	if sessionID == "" {
-		return []repository.Breadcrumb{}, nil
+		return []dbdto.Breadcrumb{}, nil
 	}
 	rows, err := s.analytics.Breadcrumbs(ctx, serviceID, sessionID, before, limit)
 	if err != nil {
 		return nil, err
 	}
 	if rows == nil {
-		rows = []repository.Breadcrumb{}
+		rows = []dbdto.Breadcrumb{}
 	}
 	return rows, nil
 }

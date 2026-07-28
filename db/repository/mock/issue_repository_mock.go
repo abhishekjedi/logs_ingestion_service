@@ -5,11 +5,11 @@ import (
 
 	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
+	"error-logging/dto"
 
 	"github.com/stretchr/testify/mock"
 )
 
-// IssueRepository is a mock of repository.IssueRepository.
 type IssueRepository struct {
 	mock.Mock
 }
@@ -30,11 +30,11 @@ func (m *IssueRepository) MarkRegressed(ctx context.Context, id uint64) (bool, e
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *IssueRepository) UpdateStatsBatch(ctx context.Context, updates []repository.IssueStatsUpdate) error {
+func (m *IssueRepository) UpdateStatsBatch(ctx context.Context, updates []dto.IssueStatsUpdate) error {
 	return m.Called(ctx, updates).Error(0)
 }
 
-func (m *IssueRepository) List(ctx context.Context, filter repository.IssueListFilter) ([]dbdto.Issue, int64, error) {
+func (m *IssueRepository) List(ctx context.Context, filter dto.IssueListFilter) ([]dbdto.Issue, int64, error) {
 	args := m.Called(ctx, filter)
 	var issues []dbdto.Issue
 	if v := args.Get(0); v != nil {

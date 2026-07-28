@@ -47,7 +47,6 @@ func (s *orgService) CreateOrg(ctx context.Context, userID uint64, name string) 
 		return nil, fmt.Errorf("create org: %w", err)
 	}
 
-	// The creator is the owner.
 	owner := &dbdto.OrganizationMember{
 		OrgID:  org.ID,
 		UserID: &userID,
@@ -74,13 +73,12 @@ func (s *orgService) InviteMember(ctx context.Context, actorID, orgID uint64, em
 		return nil, err
 	}
 	if role != constants.RoleAdmin && role != constants.RoleMember {
-		role = constants.RoleMember // cannot invite as owner
+		role = constants.RoleMember
 	}
 	if existing, err := s.members.GetByOrgEmail(ctx, orgID, email); err == nil && existing != nil {
 		return nil, fmt.Errorf("%s is already a member or invited", email)
 	}
 
-	// Link immediately if the invitee already has an account; otherwise pending.
 	member := &dbdto.OrganizationMember{
 		OrgID:  orgID,
 		Email:  email,

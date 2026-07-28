@@ -1,6 +1,3 @@
-// Package repository is the data-access layer: it owns all DB queries and is the
-// only layer services call to read/write persisted state. Connection clients live
-// in pkg/client; repositories wrap them and expose query methods.
 package repository
 
 import (

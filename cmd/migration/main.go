@@ -9,18 +9,14 @@ import (
 	"error-logging/db/migration"
 	"error-logging/pkg/config"
 
-	_ "github.com/ClickHouse/clickhouse-go/v2" // registers the "clickhouse" sql driver
-	_ "github.com/go-sql-driver/mysql"         // registers the "mysql" sql driver
+	_ "github.com/ClickHouse/clickhouse-go/v2"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
 	chdriver "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	mysqldriver "github.com/golang-migrate/migrate/v4/database/mysql"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-// The migration command applies all pending migrations across every store, then
-// exits. Run it as a separate step (locally or as a job), not on server startup:
-//
-//	go run ./cmd/migration
 func main() {
 	log.Println("Running migrations...")
 
@@ -37,9 +33,7 @@ func main() {
 }
 
 func runMySQL(cfg config.MysqlConfig) error {
-	// A dedicated connection with multiStatements=true so a migration file may
-	// contain several ;-separated statements. This is kept separate from the app's
-	// gorm pool, which deliberately does NOT enable stacked statements.
+
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&parseTime=true",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
 
@@ -81,9 +75,6 @@ func runClickHouse(cfg config.ClickhouseConfig) error {
 		return fmt.Errorf("load clickhouse migration source: %w", err)
 	}
 
-	// MultiStatementEnabled: each migration file bundles several ON CLUSTER DDL
-	// statements. ClusterName is left empty so migrate's own bookkeeping table
-	// stays local — schema DDL propagates across nodes via the ON CLUSTER clauses.
 	driver, err := chdriver.WithInstance(conn, &chdriver.Config{
 		DatabaseName:          cfg.DBName,
 		MultiStatementEnabled: true,
@@ -99,7 +90,6 @@ func runClickHouse(cfg config.ClickhouseConfig) error {
 	return applyUp(m)
 }
 
-// applyUp runs all pending migrations, treating "no change" as success.
 func applyUp(m *migrate.Migrate) error {
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("apply migrations: %w", err)

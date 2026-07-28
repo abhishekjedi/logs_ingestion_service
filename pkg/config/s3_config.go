@@ -2,8 +2,6 @@ package config
 
 import "github.com/knadh/koanf/v2"
 
-// S3Config configures the S3-compatible object store (MinIO locally, real S3 in
-// production — the only difference is endpoint/credentials).
 type S3Config struct {
 	Endpoint  string
 	AccessKey string

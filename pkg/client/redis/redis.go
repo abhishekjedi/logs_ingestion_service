@@ -15,10 +15,6 @@ type Client struct {
 	RDB *redis.Client
 }
 
-// NewClient builds a Redis client and probes it. Redis is used only as a cache, so
-// it is a degradable dependency: on a failed probe the returned *Client is still
-// usable (go-redis reconnects lazily) and the error is returned for the caller to
-// decide whether to treat the cache as temporarily unavailable rather than fatal.
 func NewClient(cfg config.RedisConfig) (*Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -37,7 +33,6 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 	return client, nil
 }
 
-// Close releases the client's connection pool.
 func (c *Client) Close() error {
 	return c.RDB.Close()
 }

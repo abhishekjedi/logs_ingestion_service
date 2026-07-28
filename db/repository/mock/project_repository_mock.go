@@ -1,5 +1,3 @@
-// Package mock provides testify-based mock implementations of the repository
-// interfaces for use in service-layer unit tests.
 package mock
 
 import (
@@ -11,7 +9,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// ProjectRepository is a mock of repository.ProjectRepository.
 type ProjectRepository struct {
 	mock.Mock
 }

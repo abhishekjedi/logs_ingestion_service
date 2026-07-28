@@ -4,59 +4,59 @@ import (
 	"context"
 	"time"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 
 	"github.com/stretchr/testify/mock"
 )
 
-// AnalyticsRepository is a mock of repository.AnalyticsRepository.
 type AnalyticsRepository struct {
 	mock.Mock
 }
 
 var _ repository.AnalyticsRepository = (*AnalyticsRepository)(nil)
 
-func (m *AnalyticsRepository) IssueTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]repository.TimePoint, error) {
+func (m *AnalyticsRepository) IssueTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]dbdto.TimePoint, error) {
 	args := m.Called(ctx, issueID, from, to)
-	var out []repository.TimePoint
+	var out []dbdto.TimePoint
 	if v := args.Get(0); v != nil {
-		out = v.([]repository.TimePoint)
+		out = v.([]dbdto.TimePoint)
 	}
 	return out, args.Error(1)
 }
 
-func (m *AnalyticsRepository) ServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ServiceOverviewPoint, error) {
+func (m *AnalyticsRepository) ServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]dbdto.ServiceOverviewPoint, error) {
 	args := m.Called(ctx, serviceID, from, to)
-	var out []repository.ServiceOverviewPoint
+	var out []dbdto.ServiceOverviewPoint
 	if v := args.Get(0); v != nil {
-		out = v.([]repository.ServiceOverviewPoint)
+		out = v.([]dbdto.ServiceOverviewPoint)
 	}
 	return out, args.Error(1)
 }
 
-func (m *AnalyticsRepository) ReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ReleaseHealth, error) {
+func (m *AnalyticsRepository) ReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]dbdto.ReleaseHealth, error) {
 	args := m.Called(ctx, serviceID, from, to)
-	var out []repository.ReleaseHealth
+	var out []dbdto.ReleaseHealth
 	if v := args.Get(0); v != nil {
-		out = v.([]repository.ReleaseHealth)
+		out = v.([]dbdto.ReleaseHealth)
 	}
 	return out, args.Error(1)
 }
 
-func (m *AnalyticsRepository) RecentErrorEvents(ctx context.Context, issueID uint64, limit int) ([]repository.ErrorEventDetail, error) {
+func (m *AnalyticsRepository) RecentErrorEvents(ctx context.Context, issueID uint64, limit int) ([]dbdto.ErrorEventDetail, error) {
 	args := m.Called(ctx, issueID, limit)
-	var out []repository.ErrorEventDetail
+	var out []dbdto.ErrorEventDetail
 	if v := args.Get(0); v != nil {
-		out = v.([]repository.ErrorEventDetail)
+		out = v.([]dbdto.ErrorEventDetail)
 	}
 	return out, args.Error(1)
 }
 
-func (m *AnalyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+func (m *AnalyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]dbdto.Breadcrumb, error) {
 	args := m.Called(ctx, serviceID, sessionID, before, limit)
-	var out []repository.Breadcrumb
+	var out []dbdto.Breadcrumb
 	if v := args.Get(0); v != nil {
-		out = v.([]repository.Breadcrumb)
+		out = v.([]dbdto.Breadcrumb)
 	}
 	return out, args.Error(1)
 }

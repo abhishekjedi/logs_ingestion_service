@@ -6,9 +6,6 @@ import (
 	"error-logging/constants"
 )
 
-// Issue is a group of events sharing a fingerprint (Sentry-style). Counts and
-// affected-* estimates are denormalized copies synced from ClickHouse issue_stats;
-// the source of truth for those numbers is ClickHouse, not this row.
 type Issue struct {
 	ID                       uint64                `gorm:"primaryKey;autoIncrement" json:"id"`
 	ServiceID                uint64                `gorm:"column:service_id" json:"service_id"`
@@ -30,9 +27,6 @@ type Issue struct {
 
 func (Issue) TableName() string { return "issues" }
 
-// IssueMetadata caches a representative sample of the group (stored as JSON on the
-// issues row) so list/detail views can render "what this issue is" without a
-// ClickHouse round trip.
 type IssueMetadata struct {
 	ExceptionType    string       `json:"exception_type,omitempty"`
 	ExceptionMessage string       `json:"exception_message,omitempty"`
@@ -40,8 +34,6 @@ type IssueMetadata struct {
 	SampleSessionID  string       `json:"sample_session_id,omitempty"`
 }
 
-// StackFrame is a single parsed stack frame; mirrors the ClickHouse stack_frames
-// tuple shape used by error_events.
 type StackFrame struct {
 	File     string `json:"file"`
 	Function string `json:"function"`

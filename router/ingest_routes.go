@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// IngestRouter registers the OTLP ingest endpoint, guarded by API-key auth.
 type IngestRouter struct {
 	IngestController controllers.IngestController
 	Auth             *middleware.APIKeyAuth

@@ -9,10 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ContextUserIDKey is the gin-context key holding the authenticated user id.
 const ContextUserIDKey = "user_id"
 
-// AuthMiddleware authenticates dashboard requests via the session cookie.
 type AuthMiddleware struct {
 	session    *session.Manager
 	cookieName string
@@ -22,8 +20,6 @@ func NewAuthMiddleware(sess *session.Manager, cfg config.AuthConfig) *AuthMiddle
 	return &AuthMiddleware{session: sess, cookieName: cfg.CookieName}
 }
 
-// RequireUser rejects requests without a valid session cookie, otherwise stores
-// the user id in the context.
 func (m *AuthMiddleware) RequireUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(m.cookieName)
@@ -41,7 +37,6 @@ func (m *AuthMiddleware) RequireUser() gin.HandlerFunc {
 	}
 }
 
-// UserIDFromContext returns the authenticated user id set by RequireUser.
 func UserIDFromContext(c *gin.Context) (uint64, bool) {
 	v, ok := c.Get(ContextUserIDKey)
 	if !ok {

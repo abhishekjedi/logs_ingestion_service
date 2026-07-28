@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// IssueRouter registers the issue read API (login required, access checked per resource).
 type IssueRouter struct {
 	IssueController controllers.IssueController
 	Auth            *middleware.AuthMiddleware

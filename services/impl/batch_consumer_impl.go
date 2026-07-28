@@ -16,12 +16,8 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// cycleFlushTimeout bounds a single cycle's transform+flush+commit on a detached
-// context, so an in-flight cycle still completes during shutdown.
 const cycleFlushTimeout = 30 * time.Second
 
-// messageReader is the slice of the Kafka reader the consumer needs (manual commit
-// for at-least-once). *kafka.Reader satisfies it; tests supply a fake.
 type messageReader interface {
 	FetchMessage(ctx context.Context) (kafka.Message, error)
 	CommitMessages(ctx context.Context, msgs ...kafka.Message) error
@@ -57,8 +53,6 @@ func (c *batchConsumer) Run(ctx context.Context) error {
 		msgs, kmsgs, shutdown := c.fetchCycle(ctx)
 		if len(kmsgs) > 0 {
 			if err := c.processCycle(msgs, kmsgs); err != nil {
-				// Flush failed after retries: return so the process restarts and
-				// replays the uncommitted cycle (at-least-once).
 				return err
 			}
 		}
@@ -70,17 +64,16 @@ func (c *batchConsumer) Run(ctx context.Context) error {
 	return nil
 }
 
-// fetchCycle blocks for the first message, then accumulates until FetchMaxMessages
-// or FetchMaxWait. Malformed messages are recorded for commit but skipped for
-// processing (so a poison message can't block its partition forever).
+// fetchCycle builds a bounded micro-batch: one blocking fetch, then a short
+// accumulation window capped by message count and bytes.
 func (c *batchConsumer) fetchCycle(ctx context.Context) (msgs []dto.LogIngestMessage, kmsgs []kafka.Message, shutdown bool) {
 	first, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, nil, true // shutdown
+			return nil, nil, true
 		}
 		log.Printf("fetch error: %v", err)
-		return nil, nil, false // transient; caller loops
+		return nil, nil, false
 	}
 	accumulate(first, &msgs, &kmsgs)
 	bytes := len(first.Value)
@@ -91,7 +84,7 @@ func (c *batchConsumer) fetchCycle(ctx context.Context) (msgs []dto.LogIngestMes
 		m, err := c.reader.FetchMessage(fctx)
 		cancel()
 		if err != nil {
-			break // deadline reached or shutdown; process what we have
+			break
 		}
 		accumulate(m, &msgs, &kmsgs)
 		bytes += len(m.Value)
@@ -100,7 +93,7 @@ func (c *batchConsumer) fetchCycle(ctx context.Context) (msgs []dto.LogIngestMes
 }
 
 func accumulate(km kafka.Message, msgs *[]dto.LogIngestMessage, kmsgs *[]kafka.Message) {
-	*kmsgs = append(*kmsgs, km) // always commit, even a poison message
+	*kmsgs = append(*kmsgs, km)
 	var m dto.LogIngestMessage
 	if err := json.Unmarshal(km.Value, &m); err != nil {
 		log.Printf("skipping malformed message: %v", err)
@@ -109,13 +102,11 @@ func accumulate(km kafka.Message, msgs *[]dto.LogIngestMessage, kmsgs *[]kafka.M
 	*msgs = append(*msgs, m)
 }
 
-// processCycle transforms, flushes, and commits one cycle on a detached context so
-// it completes even when the parent context is being cancelled for shutdown.
 func (c *batchConsumer) processCycle(msgs []dto.LogIngestMessage, kmsgs []kafka.Message) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cycleFlushTimeout)
 	defer cancel()
 
-	var result services.TransformResult
+	var result dto.TransformResult
 	if len(msgs) > 0 {
 		r, err := c.processor.TransformBatch(ctx, msgs)
 		if err != nil {
@@ -137,10 +128,9 @@ func (c *batchConsumer) processCycle(msgs []dto.LogIngestMessage, kmsgs []kafka.
 	return nil
 }
 
-// flush inserts the cycle's rows in bounded chunks so the ClickHouse driver's batch
-// buffer never holds the whole cycle. Each chunk retries independently; a chunk that
-// ultimately fails aborts the cycle (no commit → replay on restart).
-func (c *batchConsumer) flush(ctx context.Context, res services.TransformResult) error {
+// flush chunks ClickHouse writes so the driver's batch buffer never holds a whole
+// cycle; a failed chunk aborts before Kafka commit, so replay stays at-least-once.
+func (c *batchConsumer) flush(ctx context.Context, res dto.TransformResult) error {
 	if err := c.flushChunked(len(res.Logs), func(lo, hi int) error {
 		return c.logs.InsertBatch(ctx, res.Logs[lo:hi])
 	}); err != nil {
@@ -154,8 +144,6 @@ func (c *batchConsumer) flush(ctx context.Context, res services.TransformResult)
 	return nil
 }
 
-// flushChunked inserts rows [0,total) in chunks of FlushChunkRows (0 = single chunk),
-// retrying each chunk.
 func (c *batchConsumer) flushChunked(total int, insert func(lo, hi int) error) error {
 	if total == 0 {
 		return nil
@@ -190,5 +178,4 @@ func (c *batchConsumer) retryInsert(insert func() error) error {
 	return lastErr
 }
 
-// ensure kafka-go's reader satisfies our interface at compile time.
 var _ messageReader = (*kafka.Reader)(nil)

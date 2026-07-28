@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"error-logging/db/repository"
+	dbdto "error-logging/db/dto"
 	repomock "error-logging/db/repository/mock"
 	"error-logging/dto"
 	"error-logging/pkg/config"
-	"error-logging/services"
 
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/assert"
@@ -19,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeReader replays a queue of messages, then returns DeadlineExceeded (cycle
-// wait elapsed). It records committed messages.
 type fakeReader struct {
 	queue     []kafka.Message
 	idx       int
@@ -42,11 +39,11 @@ func (f *fakeReader) CommitMessages(_ context.Context, msgs ...kafka.Message) er
 }
 
 type fakeProcessor struct {
-	result services.TransformResult
+	result dto.TransformResult
 	err    error
 }
 
-func (f *fakeProcessor) TransformBatch(context.Context, []dto.LogIngestMessage) (services.TransformResult, error) {
+func (f *fakeProcessor) TransformBatch(context.Context, []dto.LogIngestMessage) (dto.TransformResult, error) {
 	return f.result, f.err
 }
 
@@ -54,7 +51,7 @@ func testCfg() config.WorkerConfig {
 	return config.WorkerConfig{
 		PoolSize:         2,
 		FetchMaxMessages: 100,
-		FetchMaxBytes:    1 << 30, // effectively unbounded for tests
+		FetchMaxBytes:    1 << 30,
 		FetchMaxWait:     10 * time.Millisecond,
 		FlushChunkRows:   1000,
 		FlushRetries:     3,
@@ -100,7 +97,7 @@ func TestProcessCycle_FlushesThenCommits(t *testing.T) {
 
 	c := &batchConsumer{
 		reader:      reader,
-		processor:   &fakeProcessor{result: services.TransformResult{Logs: []repository.LogRow{{ServiceID: 3}}}},
+		processor:   &fakeProcessor{result: dto.TransformResult{Logs: []dbdto.LogRow{{ServiceID: 3}}}},
 		logs:        logs,
 		errorEvents: errs,
 		cfg:         testCfg(),
@@ -126,8 +123,7 @@ func TestFlush_ChunksLargeBatch(t *testing.T) {
 		cfg:         config.WorkerConfig{FlushChunkRows: 2, FlushRetries: 1},
 	}
 
-	// 5 log rows with chunk size 2 → 3 inserts (2 + 2 + 1).
-	res := services.TransformResult{Logs: make([]repository.LogRow, 5)}
+	res := dto.TransformResult{Logs: make([]dbdto.LogRow, 5)}
 	require.NoError(t, c.flush(context.Background(), res))
 	logs.AssertNumberOfCalls(t, "InsertBatch", 3)
 }
@@ -140,7 +136,7 @@ func TestProcessCycle_FlushFailure_DoesNotCommit(t *testing.T) {
 
 	c := &batchConsumer{
 		reader:      reader,
-		processor:   &fakeProcessor{result: services.TransformResult{Logs: []repository.LogRow{{ServiceID: 3}}}},
+		processor:   &fakeProcessor{result: dto.TransformResult{Logs: []dbdto.LogRow{{ServiceID: 3}}}},
 		logs:        logs,
 		errorEvents: errs,
 		cfg:         config.WorkerConfig{FetchMaxMessages: 100, FlushRetries: 2},

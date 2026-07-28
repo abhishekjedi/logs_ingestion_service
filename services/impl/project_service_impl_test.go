@@ -16,7 +16,7 @@ import (
 
 func TestProjectService_CreateProject(t *testing.T) {
 	repo := new(repomock.ProjectRepository)
-	// Simulate the DB assigning an auto-increment id on insert.
+
 	repo.On("Create", mock.Anything, mock.AnythingOfType("*dto.Project")).
 		Return(nil).
 		Run(func(args mock.Arguments) {

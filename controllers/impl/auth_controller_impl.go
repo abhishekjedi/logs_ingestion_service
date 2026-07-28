@@ -29,8 +29,6 @@ func NewAuthController(svc services.AuthService, cfg config.AuthConfig, appCfg c
 	return &authController{svc: svc, cfg: cfg, appCfg: appCfg, sess: sess}
 }
 
-// GoogleLogin starts the OAuth handshake: sets a CSRF state cookie and redirects
-// the browser to Google's consent screen.
 func (ctl *authController) GoogleLogin(c *context.ApiContext) {
 	if !ctl.svc.GoogleEnabled() {
 		c.JSON(http.StatusNotFound, gin.H{"error": "google login not configured"})
@@ -41,22 +39,19 @@ func (ctl *authController) GoogleLogin(c *context.ApiContext) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start login"})
 		return
 	}
-	// Short-lived, httpOnly state cookie for CSRF protection on the callback.
+
 	c.SetCookie(oauthStateCookie, state, 600, "/", "", ctl.cfg.CookieSecure, true)
 	c.Redirect(http.StatusFound, ctl.svc.GoogleAuthURL(state))
 }
 
-// GoogleCallback completes the handshake: verifies state, exchanges the code for a
-// verified user, sets the session cookie, and redirects back to the dashboard.
 func (ctl *authController) GoogleCallback(c *context.ApiContext) {
 	if !ctl.svc.GoogleEnabled() {
 		c.JSON(http.StatusNotFound, gin.H{"error": "google login not configured"})
 		return
 	}
 
-	// CSRF: the state in the query must match the one we stored in the cookie.
 	stateCookie, _ := c.Cookie(oauthStateCookie)
-	c.SetCookie(oauthStateCookie, "", -1, "/", "", ctl.cfg.CookieSecure, true) // consume it
+	c.SetCookie(oauthStateCookie, "", -1, "/", "", ctl.cfg.CookieSecure, true)
 	if stateCookie == "" || c.Query("state") != stateCookie {
 		ctl.redirectLoginError(c, "invalid_state")
 		return
@@ -109,7 +104,7 @@ func (ctl *authController) Me(c *context.ApiContext) {
 }
 
 func (ctl *authController) Logout(c *context.ApiContext) {
-	ctl.setSessionCookie(c, "", -1) // expire the cookie
+	ctl.setSessionCookie(c, "", -1)
 	c.JSON(http.StatusOK, gin.H{"status": "logged out"})
 }
 

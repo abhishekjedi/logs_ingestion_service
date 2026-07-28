@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	chclient "error-logging/pkg/client/clickhouse"
 )
@@ -19,7 +20,7 @@ func NewLogRepository(c *chclient.NativeClient) repository.LogRepository {
 // InsertBatch appends all rows into one native batch. Column order matches the
 // logs table DDL. Writes go to the Distributed `logs` table, which routes to the
 // local shard where the materialized views fire.
-func (r *logRepository) InsertBatch(ctx context.Context, rows []repository.LogRow) error {
+func (r *logRepository) InsertBatch(ctx context.Context, rows []dbdto.LogRow) error {
 	if len(rows) == 0 {
 		return nil
 	}

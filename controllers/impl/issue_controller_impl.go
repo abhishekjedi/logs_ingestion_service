@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"error-logging/controllers"
-	"error-logging/db/repository"
+	"error-logging/dto"
 	"error-logging/pkg/context"
 	"error-logging/services"
 
@@ -37,7 +37,7 @@ func (ctl *issueController) ListIssues(c *context.ApiContext) {
 
 	limit := queryInt(c, "limit", 50)
 	offset := queryInt(c, "offset", 0)
-	filter := repository.IssueListFilter{
+	filter := dto.IssueListFilter{
 		ServiceID: serviceID,
 		Status:    c.Query("status"),
 		Sort:      c.Query("sort"),
@@ -101,8 +101,6 @@ func (ctl *issueController) GetEvents(c *context.ApiContext) {
 	c.JSON(http.StatusOK, gin.H{"events": events})
 }
 
-// issueAccess resolves the caller + issue id and enforces access, writing the
-// appropriate error response and returning ok=false on failure.
 func (ctl *issueController) issueAccess(c *context.ApiContext) (userID, issueID uint64, ok bool) {
 	userID, ok = currentUser(c)
 	if !ok {

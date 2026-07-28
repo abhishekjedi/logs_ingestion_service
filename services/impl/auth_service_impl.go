@@ -20,7 +20,7 @@ type authService struct {
 	members  repository.OrgMemberRepository
 	session  *session.Manager
 	cfg      config.AuthConfig
-	oauthCfg *oauth2.Config // nil when Google is not configured
+	oauthCfg *oauth2.Config
 }
 
 func NewAuthService(
@@ -69,7 +69,6 @@ func (s *authService) GoogleLogin(ctx context.Context, code string) (*dbdto.User
 		return nil, "", fmt.Errorf("no id_token in google response")
 	}
 
-	// Verify the ID token's signature and audience against our client ID.
 	payload, err := idtoken.Validate(ctx, rawID, s.cfg.GoogleClientID)
 	if err != nil {
 		return nil, "", fmt.Errorf("verify id_token: %w", err)
@@ -87,15 +86,12 @@ func (s *authService) GoogleLogin(ctx context.Context, code string) (*dbdto.User
 	return s.resolveAndIssue(ctx, email, name)
 }
 
-// resolveAndIssue turns a verified (email, name) into a user + session token,
-// activating any pending invites.
 func (s *authService) resolveAndIssue(ctx context.Context, email, name string) (*dbdto.User, string, error) {
 	user, err := s.users.FindOrCreateByEmail(ctx, email, name)
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve user: %w", err)
 	}
 
-	// Turn any pending email invites into active memberships for this user.
 	if err := s.members.ActivateInvites(ctx, user.ID, user.Email); err != nil {
 		return nil, "", fmt.Errorf("activate invites: %w", err)
 	}

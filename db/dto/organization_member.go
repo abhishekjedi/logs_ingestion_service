@@ -6,8 +6,6 @@ import (
 	"error-logging/constants"
 )
 
-// OrganizationMember links a user to an org with a role. A pending member is an
-// invite by email whose UserID is null until that email logs in.
 type OrganizationMember struct {
 	ID        uint64                 `gorm:"primaryKey;autoIncrement" json:"id"`
 	OrgID     uint64                 `gorm:"column:org_id" json:"org_id"`

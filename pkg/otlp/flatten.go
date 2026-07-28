@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// OTel semantic-convention attribute keys we promote to columns.
 const (
 	attrEnvironment      = "deployment.environment"
 	attrRelease          = "service.version"
@@ -20,11 +19,8 @@ const (
 	attrFingerprintHint  = "log.fingerprint"
 )
 
-// severityError is the OTLP severity number for ERROR; >= this is error-level.
 const severityError = 17
 
-// NormalizedLog is one log record flattened from OTLP with the promoted fields
-// extracted from resource + record attributes.
 type NormalizedLog struct {
 	Timestamp        time.Time
 	ObservedAt       time.Time
@@ -46,13 +42,10 @@ type NormalizedLog struct {
 	ResourceAttributes map[string]string
 }
 
-// IsError reports whether this record should be grouped into an issue. We group on
-// the presence of an exception (aligning with the issue_stats MV filter).
 func (r NormalizedLog) IsError() bool {
 	return r.ExceptionType != ""
 }
 
-// Flatten parses an OTLP/JSON logs payload into normalized records.
 func Flatten(payload []byte) ([]NormalizedLog, error) {
 	var req ExportLogsRequest
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -74,7 +67,6 @@ func Flatten(payload []byte) ([]NormalizedLog, error) {
 func normalize(lr LogRecord, resAttrs map[string]string) NormalizedLog {
 	logAttrs := asMap(lr.Attributes)
 
-	// Prefer record-level attributes, fall back to resource-level.
 	pick := func(key string) string {
 		if v, ok := logAttrs[key]; ok && v != "" {
 			return v

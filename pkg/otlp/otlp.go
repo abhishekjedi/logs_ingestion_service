@@ -1,12 +1,7 @@
-// Package otlp models the subset of the OTLP/JSON logs wire format we consume and
-// flattens it into normalized records for the pipeline. It intentionally hand-rolls
-// the structs (rather than pulling the full proto module) since we only read a
-// handful of fields; the wire format we accept is still standard OTLP/JSON.
 package otlp
 
 import "strconv"
 
-// ExportLogsRequest is the top-level OTLP logs payload (ExportLogsServiceRequest).
 type ExportLogsRequest struct {
 	ResourceLogs []ResourceLogs `json:"resourceLogs"`
 }
@@ -40,16 +35,13 @@ type KeyValue struct {
 	Value AnyValue `json:"value"`
 }
 
-// AnyValue is the OTLP union type. We support the scalar variants; complex ones
-// (array/kvlist) stringify to empty, which is fine for the attributes we extract.
 type AnyValue struct {
 	StringValue *string  `json:"stringValue,omitempty"`
-	IntValue    *string  `json:"intValue,omitempty"` // int64 encoded as string
+	IntValue    *string  `json:"intValue,omitempty"`
 	BoolValue   *bool    `json:"boolValue,omitempty"`
 	DoubleValue *float64 `json:"doubleValue,omitempty"`
 }
 
-// AsString renders the scalar value as a string.
 func (v AnyValue) AsString() string {
 	switch {
 	case v.StringValue != nil:
@@ -65,7 +57,6 @@ func (v AnyValue) AsString() string {
 	}
 }
 
-// asMap collapses a KeyValue list into a plain string map.
 func asMap(kvs []KeyValue) map[string]string {
 	if len(kvs) == 0 {
 		return map[string]string{}

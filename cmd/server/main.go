@@ -20,8 +20,6 @@ import (
 	"error-logging/router"
 )
 
-// shutdownTimeout bounds how long we wait for in-flight requests to drain before
-// forcing the process to exit.
 const shutdownTimeout = 15 * time.Second
 
 func main() {
@@ -34,13 +32,6 @@ func main() {
 	}
 }
 
-// startServer builds the HTTP server, runs it, and blocks until either the server
-// fails to start or a shutdown signal arrives, at which point it drains in-flight
-// requests within shutdownTimeout and releases resources before returning.
-//
-// mysql and redis are injected so they can be closed on shutdown. Injecting them
-// also forces their construction at startup: mysql is required (a failure fails
-// startup), while redis is degradable (provideRedis logs and continues).
 func startServer(
 	r *router.Router,
 	appCfg config.AppConfig,
@@ -48,23 +39,19 @@ func startServer(
 	redisC *redisclient.Client,
 	kafkaC *kafkaclient.Client,
 ) error {
-	// Release pools and flush the async Kafka writer on every exit path once the
-	// server has drained.
+
 	defer closeResources(mysqlC, redisC, kafkaC)
 
 	srv := &http.Server{
 		Addr:    appCfg.Addr(),
 		Handler: r.Setup(),
-		// Timeouts protect against slow/stuck clients (e.g. Slowloris) exhausting
-		// connections.
+
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
-	// Run the listener in the background so we can concurrently wait on both a
-	// startup error and OS shutdown signals.
 	serverErr := make(chan error, 1)
 	go func() {
 		log.Printf("server listening on %s", srv.Addr)
@@ -78,7 +65,7 @@ func startServer(
 
 	select {
 	case err := <-serverErr:
-		// Listener never came up (e.g. port already in use).
+
 		return fmt.Errorf("server failed to start: %w", err)
 	case sig := <-quit:
 		log.Printf("received %s, shutting down gracefully...", sig)
@@ -95,7 +82,6 @@ func startServer(
 	return nil
 }
 
-// closeResources closes each client, logging (but not failing on) individual errors.
 func closeResources(closers ...io.Closer) {
 	for _, c := range closers {
 		if c == nil {

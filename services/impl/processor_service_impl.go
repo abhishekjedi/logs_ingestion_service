@@ -22,7 +22,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// metadataFrames bounds how many frames are cached on the issue metadata sample.
 const metadataFrames = 3
 
 type processorService struct {
@@ -47,28 +46,24 @@ func NewProcessorService(
 	return &processorService{store: store, issues: issues, cache: cache, limiter: limiter, poolSize: size}
 }
 
-// msgResult is one message's transform output: log rows plus ungated error
-// candidates (rate limiting is applied once per fingerprint for the whole cycle).
 type msgResult struct {
-	logs       []repository.LogRow
+	logs       []dbdto.LogRow
 	candidates []errorCandidate
 }
 
 type errorCandidate struct {
 	fingerprint string
-	row         repository.ErrorEventRow
+	row         dbdto.ErrorEventRow
 }
 
-// TransformBatch transforms a cycle of messages. Raw payloads are archived as ONE
-// object for the whole cycle; messages are transformed in parallel (bounded by
-// poolSize) with a shared per-cycle fingerprint→issueID memo; then the rate limit
-// is applied once per distinct fingerprint (one Redis op per fingerprint, not per
-// event).
-func (p *processorService) TransformBatch(ctx context.Context, msgs []dto.LogIngestMessage) (services.TransformResult, error) {
+// TransformBatch archives one NDJSON object per cycle, transforms messages in a
+// bounded worker pool, memoizes fingerprint lookups across the cycle, then applies
+// rate limits once per fingerprint instead of once per event.
+func (p *processorService) TransformBatch(ctx context.Context, msgs []dto.LogIngestMessage) (dto.TransformResult, error) {
 	s3Key := p.archiveBatch(ctx, msgs)
 
 	perMsg := make([]msgResult, len(msgs))
-	var memo sync.Map // "serviceID:fp" → uint64 issueID
+	var memo sync.Map
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, p.poolSize)
@@ -83,28 +78,27 @@ func (p *processorService) TransformBatch(ctx context.Context, msgs []dto.LogIng
 	}
 	wg.Wait()
 
-	// Merge in message order.
-	var logs []repository.LogRow
+	var logs []dbdto.LogRow
 	var candidates []errorCandidate
 	for _, r := range perMsg {
 		logs = append(logs, r.logs...)
 		candidates = append(candidates, r.candidates...)
 	}
 
-	return services.TransformResult{
+	return dto.TransformResult{
 		Logs:        logs,
 		ErrorEvents: p.applyRateLimit(ctx, candidates),
 	}, nil
 }
 
-// applyRateLimit groups error candidates by fingerprint and keeps only those within
-// the limit — one AllowN (one Redis round trip) per distinct fingerprint per cycle.
-func (p *processorService) applyRateLimit(ctx context.Context, candidates []errorCandidate) []repository.ErrorEventRow {
+// applyRateLimit does one Redis reservation per fingerprint per cycle, not one per
+// event, while still preserving all rows in logs for analytics counts.
+func (p *processorService) applyRateLimit(ctx context.Context, candidates []errorCandidate) []dbdto.ErrorEventRow {
 	if len(candidates) == 0 {
 		return nil
 	}
 
-	byFP := make(map[string][]repository.ErrorEventRow)
+	byFP := make(map[string][]dbdto.ErrorEventRow)
 	order := make([]string, 0)
 	for _, c := range candidates {
 		if _, ok := byFP[c.fingerprint]; !ok {
@@ -113,14 +107,21 @@ func (p *processorService) applyRateLimit(ctx context.Context, candidates []erro
 		byFP[c.fingerprint] = append(byFP[c.fingerprint], c.row)
 	}
 
-	var kept []repository.ErrorEventRow
+	var kept []dbdto.ErrorEventRow
 	for _, fp := range order {
 		rows := byFP[fp]
 		allowed := p.limiter.AllowN(ctx, fp, len(rows))
 		if allowed > len(rows) {
 			allowed = len(rows)
 		}
-		kept = append(kept, rows[:allowed]...)
+		// Mint event IDs only for survivors. uuid.NewString reads crypto/rand (one
+		// syscall per call), so generating them for every candidate burned most of
+		// the worker's CPU on rows the limiter was about to discard.
+		survivors := rows[:allowed]
+		for i := range survivors {
+			survivors[i].EventID = uuid.NewString()
+		}
+		kept = append(kept, survivors...)
 	}
 	return kept
 }
@@ -133,7 +134,7 @@ func (p *processorService) transformMessage(ctx context.Context, msg dto.LogInge
 	}
 
 	ingestedAt := time.Now().UTC()
-	res := msgResult{logs: make([]repository.LogRow, 0, len(records))}
+	res := msgResult{logs: make([]dbdto.LogRow, 0, len(records))}
 
 	for _, rec := range records {
 		logRow := toLogRow(rec, msg)
@@ -145,7 +146,6 @@ func (p *processorService) transformMessage(ctx context.Context, msg dto.LogInge
 			issueID := p.resolveIssueMemo(ctx, msg.ServiceID, fp, rec, frames, memo)
 			if issueID != 0 {
 				logRow.IssueID = issueID
-				// Ungated candidate; the cycle-level rate limit decides which survive.
 				res.candidates = append(res.candidates, errorCandidate{
 					fingerprint: fp,
 					row:         toErrorEventRow(rec, issueID, msg, frames, ingestedAt, s3Key),
@@ -158,8 +158,8 @@ func (p *processorService) transformMessage(ctx context.Context, msg dto.LogInge
 	return res
 }
 
-// archiveBatch stores every raw payload in the cycle as one newline-delimited JSON
-// object (best-effort). All error rows in the cycle reference its key.
+// archiveBatch uses one S3/MinIO write per worker cycle instead of one write per
+// Kafka message.
 func (p *processorService) archiveBatch(ctx context.Context, msgs []dto.LogIngestMessage) string {
 	if len(msgs) == 0 {
 		return ""
@@ -193,7 +193,6 @@ func (p *processorService) resolveIssueMemo(ctx context.Context, serviceID uint6
 }
 
 func (p *processorService) resolveIssue(ctx context.Context, serviceID uint64, fp string, rec otlp.NormalizedLog, frames []dbdto.StackFrame) (uint64, error) {
-	// Fast path: a known fingerprint skips MySQL entirely (cross-cycle cache).
 	if id, ok := p.cache.Get(ctx, serviceID, fp); ok {
 		return id, nil
 	}
@@ -236,8 +235,8 @@ func (p *processorService) resolveIssue(ctx context.Context, serviceID uint64, f
 	return resolved.ID, nil
 }
 
-func toLogRow(rec otlp.NormalizedLog, msg dto.LogIngestMessage) repository.LogRow {
-	return repository.LogRow{
+func toLogRow(rec otlp.NormalizedLog, msg dto.LogIngestMessage) dbdto.LogRow {
+	return dbdto.LogRow{
 		Timestamp:          rec.Timestamp,
 		ObservedAt:         rec.ObservedAt,
 		ProjectID:          msg.ProjectID,
@@ -259,20 +258,19 @@ func toLogRow(rec otlp.NormalizedLog, msg dto.LogIngestMessage) repository.LogRo
 	}
 }
 
-func toErrorEventRow(rec otlp.NormalizedLog, issueID uint64, msg dto.LogIngestMessage, frames []dbdto.StackFrame, ingestedAt time.Time, s3Key string) repository.ErrorEventRow {
-	chFrames := make([]repository.ErrorEventFrame, len(frames))
+func toErrorEventRow(rec otlp.NormalizedLog, issueID uint64, msg dto.LogIngestMessage, frames []dbdto.StackFrame, ingestedAt time.Time, s3Key string) dbdto.ErrorEventRow {
+	chFrames := make([]dbdto.ErrorEventFrame, len(frames))
 	for i, f := range frames {
 		inApp := uint8(0)
 		if f.InApp {
 			inApp = 1
 		}
-		chFrames[i] = repository.ErrorEventFrame{
+		chFrames[i] = dbdto.ErrorEventFrame{
 			File: f.File, Function: f.Function, Line: f.Line, Col: f.Col, InApp: inApp,
 		}
 	}
 
-	return repository.ErrorEventRow{
-		EventID:            uuid.NewString(),
+	return dbdto.ErrorEventRow{
 		IssueID:            issueID,
 		ServiceID:          msg.ServiceID,
 		ProjectID:          msg.ProjectID,

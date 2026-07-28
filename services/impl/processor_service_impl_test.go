@@ -28,7 +28,6 @@ func (f *fakeLimiter) AllowN(_ context.Context, _ string, n int) int {
 	return 0
 }
 
-// countingLimiter records how many times AllowN is called and caps at `allow`.
 type countingLimiter struct {
 	calls int
 	allow int
@@ -42,7 +41,6 @@ func (c *countingLimiter) AllowN(_ context.Context, _ string, n int) int {
 	return n
 }
 
-// fakeCache always misses, so tests exercise the ResolveOrCreate (MySQL) path.
 type fakeCache struct{}
 
 func (fakeCache) Get(context.Context, uint64, string) (uint64, bool) { return 0, false }
@@ -104,7 +102,7 @@ func TestProcessor_NonErrorRecord_NoIssueNoErrorEvent(t *testing.T) {
 }
 
 func TestProcessor_RateLimit_GatesFidelityNotCounting(t *testing.T) {
-	// Limiter denies: the log row (→ counts) is still written, but no error_events row.
+
 	issues := new(repomock.IssueRepository)
 	issues.On("ResolveOrCreate", mock.Anything, mock.Anything).
 		Return(&dbdto.Issue{ID: 5, Status: constants.StatusUnresolved}, true, nil)
@@ -131,7 +129,7 @@ func TestProcessor_Regression_ReopensResolvedIssue(t *testing.T) {
 }
 
 func TestProcessor_MemoizesFingerprintAcrossCycle(t *testing.T) {
-	// Two messages with the SAME fingerprint → resolved once for the whole cycle.
+
 	issues := new(repomock.IssueRepository)
 	issues.On("ResolveOrCreate", mock.Anything, mock.Anything).
 		Return(&dbdto.Issue{ID: 5, Status: constants.StatusUnresolved}, true, nil).Once()
@@ -145,7 +143,7 @@ func TestProcessor_MemoizesFingerprintAcrossCycle(t *testing.T) {
 }
 
 func TestProcessor_ArchivesOncePerCycle(t *testing.T) {
-	// Three messages in one cycle → a single archive object (not one per message).
+
 	store := &fakeStore{}
 	p := newProcessor(store, new(repomock.IssueRepository), true)
 	_, err := p.TransformBatch(context.Background(), []dto.LogIngestMessage{
@@ -156,8 +154,7 @@ func TestProcessor_ArchivesOncePerCycle(t *testing.T) {
 }
 
 func TestProcessor_BatchedRateLimit_OneCallPerFingerprint(t *testing.T) {
-	// Five error records sharing a fingerprint → ONE rate-limit call, capped to the
-	// returned allowance; all five still counted in logs.
+
 	issues := new(repomock.IssueRepository)
 	issues.On("ResolveOrCreate", mock.Anything, mock.Anything).
 		Return(&dbdto.Issue{ID: 5, Status: constants.StatusUnresolved}, true, nil)

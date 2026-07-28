@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// ServiceRepository is a mock of repository.ServiceRepository.
 type ServiceRepository struct {
 	mock.Mock
 }

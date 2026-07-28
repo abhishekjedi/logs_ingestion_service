@@ -6,20 +6,17 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
-// AuthConfig configures dashboard (user) auth: the JWT session cookie and
-// Google OAuth.
 type AuthConfig struct {
 	JWTSecret    string
 	TokenTTL     time.Duration
 	CookieName   string
-	CookieSecure bool // set true behind HTTPS
+	CookieSecure bool
 
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
 }
 
-// GoogleEnabled reports whether Google OAuth is fully configured.
 func (a AuthConfig) GoogleEnabled() bool {
 	return a.GoogleClientID != "" && a.GoogleClientSecret != "" && a.GoogleRedirectURL != ""
 }

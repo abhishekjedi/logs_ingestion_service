@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	chclient "error-logging/pkg/client/clickhouse"
 )
@@ -17,9 +18,7 @@ func NewIssueStatsRepository(c *chclient.NativeClient) repository.IssueStatsRepo
 	return &issueStatsRepository{conn: c}
 }
 
-// ActiveSince merges the aggregate states into per-issue totals across all hours,
-// keeping only issues whose latest hour is at/after `since`.
-func (r *issueStatsRepository) ActiveSince(ctx context.Context, since time.Time) ([]repository.IssueStatsAggregate, error) {
+func (r *issueStatsRepository) ActiveSince(ctx context.Context, since time.Time) ([]dbdto.IssueStatsAggregate, error) {
 	const q = `
 SELECT service_id,
        issue_id,
@@ -37,9 +36,9 @@ HAVING last_hour >= ?`
 	}
 	defer rows.Close()
 
-	var out []repository.IssueStatsAggregate
+	var out []dbdto.IssueStatsAggregate
 	for rows.Next() {
-		var a repository.IssueStatsAggregate
+		var a dbdto.IssueStatsAggregate
 		if err := rows.Scan(&a.ServiceID, &a.IssueID, &a.EventCount, &a.Users, &a.Sessions, &a.LastSeen); err != nil {
 			return nil, fmt.Errorf("scan issue_stats: %w", err)
 		}

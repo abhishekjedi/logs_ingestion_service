@@ -1,11 +1,3 @@
-// Command loadtest fires OTLP log batches at the ingest API concurrently to
-// measure throughput. Each HTTP request carries a batch of records (as real OTLP
-// SDKs do), so a modest request rate yields a high event rate. Records cycle
-// through a configurable number of distinct exception types to exercise issue
-// creation, not just a single group.
-//
-//	go run ./cmd/loadtest -url http://localhost:8080 -key <API_KEY> -public-id <ID> \
-//	    -events 100000 -batch 100 -concurrency 64 -distinct 50
 package main
 
 import (
@@ -49,7 +41,6 @@ func main() {
 		},
 	}
 
-	// Pre-build one payload per distinct fingerprint; senders round-robin them.
 	payloads := make([][]byte, *distinct)
 	for i := range payloads {
 		payloads[i] = buildBatch(*batch, i)
@@ -112,8 +103,6 @@ func postBatch(client *http.Client, endpoint, key string, body []byte) bool {
 	return resp.StatusCode == http.StatusAccepted
 }
 
-// buildBatch constructs an OTLP request with n error records for exception type
-// variant `v`, so different variants produce different fingerprints/issues.
 func buildBatch(n, v int) []byte {
 	var b bytes.Buffer
 	b.WriteString(`{"resourceLogs":[{"resource":{"attributes":[{"key":"deployment.environment","value":{"stringValue":"production"}},{"key":"service.version","value":{"stringValue":"v1.0.0"}}]},"scopeLogs":[{"logRecords":[`)

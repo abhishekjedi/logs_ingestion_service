@@ -2,8 +2,6 @@ package dto
 
 import "time"
 
-// Organization is the top-level tenant. Users are members of orgs; projects belong
-// to an org.
 type Organization struct {
 	ID        uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name      string    `gorm:"column:name" json:"name"`

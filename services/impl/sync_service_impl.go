@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"error-logging/db/repository"
+	"error-logging/dto"
 	"error-logging/pkg/config"
 	"error-logging/services"
 )
@@ -34,9 +35,9 @@ func (s *syncService) SyncOnce(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	updates := make([]repository.IssueStatsUpdate, 0, len(aggregates))
+	updates := make([]dto.IssueStatsUpdate, 0, len(aggregates))
 	for _, a := range aggregates {
-		updates = append(updates, repository.IssueStatsUpdate{
+		updates = append(updates, dto.IssueStatsUpdate{
 			IssueID:          a.IssueID,
 			EventCount:       a.EventCount,
 			AffectedUsers:    a.Users,

@@ -8,22 +8,17 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
-// WorkerConfig tunes the batch consumer. Values come from config.yaml, overridden
-// by ERRLOG_WORKER_* environment variables (env wins), each with a safe default.
 type WorkerConfig struct {
-	// PoolSize is the transform parallelism within a cycle.
 	PoolSize int
-	// FetchMaxMessages caps how many Kafka messages a cycle accumulates.
+
 	FetchMaxMessages int
-	// FetchMaxBytes caps the total raw payload bytes a cycle accumulates, bounding
-	// peak memory regardless of individual message size.
+
 	FetchMaxBytes int
-	// FetchMaxWait caps how long a cycle waits to fill (latency bound at low traffic).
+
 	FetchMaxWait time.Duration
-	// FlushChunkRows caps rows per ClickHouse insert so the driver's batch buffer
-	// never holds an entire large cycle at once. 0 = no chunking.
+
 	FlushChunkRows int
-	// FlushRetries is how many times a failed ClickHouse flush chunk is retried.
+
 	FlushRetries int
 }
 

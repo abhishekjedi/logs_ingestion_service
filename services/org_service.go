@@ -7,8 +7,6 @@ import (
 	dbdto "error-logging/db/dto"
 )
 
-// OrgService manages organizations and their membership. Any authenticated user
-// may create an org (becoming its owner); member management requires owner/admin.
 type OrgService interface {
 	CreateOrg(ctx context.Context, userID uint64, name string) (*dbdto.Organization, error)
 	ListMyOrgs(ctx context.Context, userID uint64) ([]dbdto.Organization, error)

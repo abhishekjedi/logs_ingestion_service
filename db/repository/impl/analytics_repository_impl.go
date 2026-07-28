@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	chclient "error-logging/pkg/client/clickhouse"
 )
@@ -17,7 +18,7 @@ func NewAnalyticsRepository(c *chclient.NativeClient) repository.AnalyticsReposi
 	return &analyticsRepository{conn: c}
 }
 
-func (r *analyticsRepository) IssueTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]repository.TimePoint, error) {
+func (r *analyticsRepository) IssueTimeseries(ctx context.Context, issueID uint64, from, to time.Time) ([]dbdto.TimePoint, error) {
 	const q = `
 SELECT hour, countMerge(event_count) AS events, uniqMerge(users) AS users
 FROM issue_stats
@@ -30,9 +31,9 @@ GROUP BY hour ORDER BY hour`
 	}
 	defer rows.Close()
 
-	var out []repository.TimePoint
+	var out []dbdto.TimePoint
 	for rows.Next() {
-		var p repository.TimePoint
+		var p dbdto.TimePoint
 		if err := rows.Scan(&p.Timestamp, &p.Events, &p.Users); err != nil {
 			return nil, err
 		}
@@ -41,7 +42,7 @@ GROUP BY hour ORDER BY hour`
 	return out, rows.Err()
 }
 
-func (r *analyticsRepository) ServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ServiceOverviewPoint, error) {
+func (r *analyticsRepository) ServiceOverview(ctx context.Context, serviceID uint64, from, to time.Time) ([]dbdto.ServiceOverviewPoint, error) {
 	const q = `
 SELECT hour,
        countMerge(event_count) AS events,
@@ -57,9 +58,9 @@ GROUP BY hour ORDER BY hour`
 	}
 	defer rows.Close()
 
-	var out []repository.ServiceOverviewPoint
+	var out []dbdto.ServiceOverviewPoint
 	for rows.Next() {
-		var p repository.ServiceOverviewPoint
+		var p dbdto.ServiceOverviewPoint
 		if err := rows.Scan(&p.Timestamp, &p.Events, &p.Issues, &p.Users); err != nil {
 			return nil, err
 		}
@@ -68,7 +69,7 @@ GROUP BY hour ORDER BY hour`
 	return out, rows.Err()
 }
 
-func (r *analyticsRepository) ReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]repository.ReleaseHealth, error) {
+func (r *analyticsRepository) ReleaseHealth(ctx context.Context, serviceID uint64, from, to time.Time) ([]dbdto.ReleaseHealth, error) {
 	const q = `
 SELECT release,
        uniqMerge(sessions_total)   AS total,
@@ -83,9 +84,9 @@ GROUP BY release ORDER BY release`
 	}
 	defer rows.Close()
 
-	var out []repository.ReleaseHealth
+	var out []dbdto.ReleaseHealth
 	for rows.Next() {
-		var h repository.ReleaseHealth
+		var h dbdto.ReleaseHealth
 		if err := rows.Scan(&h.Release, &h.SessionsTotal, &h.SessionsErrored); err != nil {
 			return nil, err
 		}
@@ -94,7 +95,7 @@ GROUP BY release ORDER BY release`
 	return out, rows.Err()
 }
 
-func (r *analyticsRepository) RecentErrorEvents(ctx context.Context, issueID uint64, limit int) ([]repository.ErrorEventDetail, error) {
+func (r *analyticsRepository) RecentErrorEvents(ctx context.Context, issueID uint64, limit int) ([]dbdto.ErrorEventDetail, error) {
 	const q = `
 SELECT toString(event_id), timestamp, severity_text, exception_type, exception_message,
        user_id, session_id, environment, release, trace_id, span_id, stack_frames,
@@ -110,9 +111,9 @@ LIMIT ?`
 	}
 	defer rows.Close()
 
-	var out []repository.ErrorEventDetail
+	var out []dbdto.ErrorEventDetail
 	for rows.Next() {
-		var e repository.ErrorEventDetail
+		var e dbdto.ErrorEventDetail
 		if err := rows.Scan(
 			&e.EventID, &e.Timestamp, &e.SeverityText, &e.ExceptionType, &e.ExceptionMessage,
 			&e.UserID, &e.SessionID, &e.Environment, &e.Release, &e.TraceID, &e.SpanID, &e.StackFrames,
@@ -125,7 +126,7 @@ LIMIT ?`
 	return out, rows.Err()
 }
 
-func (r *analyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]repository.Breadcrumb, error) {
+func (r *analyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]dbdto.Breadcrumb, error) {
 	const q = `
 SELECT timestamp, severity_text, body, exception_type
 FROM logs
@@ -139,9 +140,9 @@ LIMIT ?`
 	}
 	defer rows.Close()
 
-	var out []repository.Breadcrumb
+	var out []dbdto.Breadcrumb
 	for rows.Next() {
-		var b repository.Breadcrumb
+		var b dbdto.Breadcrumb
 		if err := rows.Scan(&b.Timestamp, &b.SeverityText, &b.Body, &b.ExceptionType); err != nil {
 			return nil, err
 		}

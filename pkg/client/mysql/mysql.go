@@ -16,9 +16,6 @@ type Client struct {
 	DB *gorm.DB
 }
 
-// NewClient connects to MySQL, verifies the connection, and tunes the pool. MySQL
-// is a required dependency (the control plane cannot function without it), so a
-// connection failure is returned to the caller to decide on — it does not exit.
 func NewClient(cfg config.MysqlConfig) (*Client, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName,
@@ -48,7 +45,6 @@ func NewClient(cfg config.MysqlConfig) (*Client, error) {
 	return &Client{DB: db}, nil
 }
 
-// Close releases the underlying connection pool.
 func (c *Client) Close() error {
 	sqlDB, err := c.DB.DB()
 	if err != nil {

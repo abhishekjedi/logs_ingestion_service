@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// OrgRouter registers organization + membership endpoints (all require login).
 type OrgRouter struct {
 	OrgController controllers.OrgController
 	Auth          *middleware.AuthMiddleware

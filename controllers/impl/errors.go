@@ -11,8 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// respondErr maps service sentinel errors to HTTP status codes so authz failures
-// return 403/404 instead of leaking 500s.
 func respondErr(c *context.ApiContext, err error) {
 	switch {
 	case errors.Is(err, services.ErrForbidden):
@@ -24,7 +22,6 @@ func respondErr(c *context.ApiContext, err error) {
 	}
 }
 
-// currentUser returns the authenticated user id, writing 401 if absent.
 func currentUser(c *context.ApiContext) (uint64, bool) {
 	id, ok := middleware.UserIDFromContext(c.Context)
 	if !ok {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	dbdto "error-logging/db/dto"
 	"error-logging/db/repository"
 	chclient "error-logging/pkg/client/clickhouse"
 )
@@ -18,7 +19,7 @@ func NewErrorEventRepository(c *chclient.NativeClient) repository.ErrorEventRepo
 
 // InsertBatch writes full-fidelity error rows. stack_frames is passed as positional
 // tuples ([]any per frame) matching Array(Tuple(file, function, line, col, in_app)).
-func (r *errorEventRepository) InsertBatch(ctx context.Context, rows []repository.ErrorEventRow) error {
+func (r *errorEventRepository) InsertBatch(ctx context.Context, rows []dbdto.ErrorEventRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
