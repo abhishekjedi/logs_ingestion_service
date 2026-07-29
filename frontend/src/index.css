@@ -142,3 +142,19 @@ tr:hover td { background: var(--panel-2); }
 .orgfield { display: flex; flex-direction: column; gap: 6px; }
 .field-label { font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--muted); }
+
+.integration-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.integration-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.integration-form input { width: 100%; }
+.replay-integration { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+.danger-ghost { color: #fca5a5 !important; }
+.session-context { border-left: 2px solid var(--accent); padding-left: 14px; margin-top: 12px; }
+.context-event { display: grid; grid-template-columns: 82px 120px 1fr; gap: 10px; align-items: baseline; padding: 5px 0; }
+.context-kind { color: #a5b4fc; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.replay-link { color: #a5b4fc; font-size: 12px; font-weight: 700; }
+
+@media (max-width: 760px) {
+  .integration-form { grid-template-columns: 1fr; }
+  .context-event { grid-template-columns: 72px 1fr; }
+  .context-event > :last-child { grid-column: 2; }
+}

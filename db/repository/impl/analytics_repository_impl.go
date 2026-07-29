@@ -126,6 +126,31 @@ LIMIT ?`
 	return out, rows.Err()
 }
 
+func (r *analyticsRepository) GetErrorEvent(
+	ctx context.Context,
+	issueID uint64,
+	eventID string,
+) (*dbdto.ErrorEventDetail, error) {
+	const q = `
+SELECT toString(event_id), timestamp, severity_text, exception_type, exception_message,
+       user_id, session_id, environment, release, trace_id, span_id, stack_frames,
+       attributes, resource_attributes
+FROM error_events
+WHERE issue_id = ? AND toString(event_id) = ?
+LIMIT 1`
+
+	row := r.conn.Conn.QueryRow(ctx, q, issueID, eventID)
+	var event dbdto.ErrorEventDetail
+	if err := row.Scan(
+		&event.EventID, &event.Timestamp, &event.SeverityText, &event.ExceptionType, &event.ExceptionMessage,
+		&event.UserID, &event.SessionID, &event.Environment, &event.Release, &event.TraceID, &event.SpanID,
+		&event.StackFrames, &event.Attributes, &event.ResourceAttributes,
+	); err != nil {
+		return nil, fmt.Errorf("get error event: %w", err)
+	}
+	return &event, nil
+}
+
 func (r *analyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]dbdto.Breadcrumb, error) {
 	const q = `
 SELECT timestamp, severity_text, body, exception_type

@@ -24,6 +24,49 @@ export type ErrorEvent = {
   resource_attributes: Record<string, string> | null;
 };
 export type Breadcrumb = { timestamp: string; severity_text: string; body: string; exception_type: string };
+export type ReplayIntegration = {
+  id: number;
+  project_id: number;
+  provider: string;
+  external_project_key: string;
+  api_base_url: string;
+  ingest_point: string;
+  enabled: boolean;
+  has_api_key: boolean;
+  last_validated_at?: string;
+  last_error: string;
+};
+export type ReplayIntegrationInput = {
+  external_project_key: string;
+  api_base_url?: string;
+  ingest_point?: string;
+  organization_api_key?: string;
+  enabled?: boolean;
+};
+export type SessionContextEvent = {
+  timestamp: string;
+  kind: string;
+  label: string;
+  method?: string;
+  url?: string;
+  status_code?: number;
+  duration_ms?: number;
+  source_event_id: string;
+  count?: number;
+  untrusted: boolean;
+};
+export type SessionContext = {
+  status: "not_configured" | "missing_session" | "recording_pending" | "ready" | "temporarily_unavailable";
+  session_id?: string;
+  replay_url?: string;
+  focused_at: string;
+  journey: SessionContextEvent[];
+  network_failures: SessionContextEvent[];
+  console_errors: SessionContextEvent[];
+  exceptions: SessionContextEvent[];
+  counts: Record<string, number>;
+  truncated: boolean;
+};
 
 export class ApiError extends Error {
   status: number;
@@ -61,6 +104,15 @@ export const api = {
   listProjects: (orgId: number) => req<{ projects: Project[] }>("GET", `/orgs/${orgId}/projects`),
   createProject: (orgId: number, name: string) => req<{ project: Project }>("POST", `/orgs/${orgId}/projects`, { name }),
   getProject: (id: number) => req<{ project: Project }>("GET", `/projects/${id}`),
+  listReplayIntegrations: (projectId: number) =>
+    req<{ integrations: ReplayIntegration[]; can_manage: boolean }>("GET", `/projects/${projectId}/integrations/openreplay`),
+  saveReplayIntegration: (projectId: number, input: ReplayIntegrationInput) =>
+    req<{ integration: ReplayIntegration }>("PUT", `/projects/${projectId}/integrations/openreplay`, input),
+  deleteReplayIntegration: (projectId: number, projectKey: string) =>
+    req<void>(
+      "DELETE",
+      `/projects/${projectId}/integrations/openreplay?project_key=${encodeURIComponent(projectKey)}`,
+    ),
 
   listServices: (projectId: number) => req<{ services: Service[] }>("GET", `/projects/${projectId}/services`),
   createService: (projectId: number, name: string) => req<CreatedService>("POST", `/projects/${projectId}/services`, { name }),
@@ -69,6 +121,11 @@ export const api = {
   getIssue: (id: number) => req<{ issue: Issue }>("GET", `/issues/${id}`),
   issueTimeseries: (id: number) => req<{ points: TimePoint[] }>("GET", `/issues/${id}/timeseries`),
   issueEvents: (id: number) => req<{ events: ErrorEvent[] }>("GET", `/issues/${id}/events`),
+  sessionContext: (issueId: number, eventId: string) =>
+    req<SessionContext>(
+      "GET",
+      `/issues/${issueId}/events/${encodeURIComponent(eventId)}/session-context`,
+    ),
 
   serviceOverview: (id: number) => req<{ points: OverviewPoint[] }>("GET", `/services/${id}/overview`),
   releaseHealth: (id: number) => req<{ releases: ReleaseHealth[] }>("GET", `/services/${id}/release-health`),

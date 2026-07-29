@@ -4,6 +4,11 @@ app:
   base_url: http://localhost:8080
   port: "8080"
 
+replay:
+  request_timeout: 5s
+  cache_ttl: 1m
+  allow_insecure: false
+
 worker:
   pool_size: 16
   fetch_max_messages: 500

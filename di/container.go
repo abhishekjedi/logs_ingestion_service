@@ -8,6 +8,7 @@ import (
 	chclient "error-logging/pkg/client/clickhouse"
 	kafkaclient "error-logging/pkg/client/kafka"
 	mysqlclient "error-logging/pkg/client/mysql"
+	openreplayclient "error-logging/pkg/client/openreplay"
 	s3client "error-logging/pkg/client/s3"
 	"error-logging/pkg/config"
 	"error-logging/pkg/session"
@@ -28,6 +29,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(config.NewClickhouseConfig)
 	container.Provide(config.NewKafkaConfig)
 	container.Provide(config.NewS3Config)
+	container.Provide(config.NewReplayConfig)
 
 	container.Provide(mysqlclient.NewClient)
 	container.Provide(provideRedis)
@@ -35,6 +37,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(chclient.NewNativeClient)
 	container.Provide(kafkaclient.NewClient)
 	container.Provide(s3client.NewClient)
+	container.Provide(openreplayclient.NewClient)
 
 	container.Provide(session.NewManager)
 
@@ -45,6 +48,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(repositoryimpl.NewServiceRepository)
 	container.Provide(repositoryimpl.NewIssueRepository)
 	container.Provide(repositoryimpl.NewAnalyticsRepository)
+	container.Provide(repositoryimpl.NewReplayIntegrationRepository)
 
 	container.Provide(serviceimpl.NewAuthService)
 	container.Provide(serviceimpl.NewAuthzService)
@@ -54,6 +58,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(serviceimpl.NewIngestService)
 	container.Provide(serviceimpl.NewIssueService)
 	container.Provide(serviceimpl.NewAnalyticsService)
+	container.Provide(serviceimpl.NewReplayService)
 
 	container.Provide(middleware.NewAPIKeyAuth)
 	container.Provide(middleware.NewAuthMiddleware)
@@ -67,6 +72,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(controllerimpl.NewIngestController)
 	container.Provide(controllerimpl.NewIssueController)
 	container.Provide(controllerimpl.NewAnalyticsController)
+	container.Provide(controllerimpl.NewReplayController)
 
 	container.Provide(router.NewHealthRouter)
 	container.Provide(router.NewAuthRouter)
@@ -75,6 +81,7 @@ func BuildContainer() *dig.Container {
 	container.Provide(router.NewIngestRouter)
 	container.Provide(router.NewIssueRouter)
 	container.Provide(router.NewAnalyticsRouter)
+	container.Provide(router.NewReplayRouter)
 	container.Provide(func(
 		health *router.HealthRouter,
 		auth *router.AuthRouter,
@@ -83,10 +90,11 @@ func BuildContainer() *dig.Container {
 		ingest *router.IngestRouter,
 		issue *router.IssueRouter,
 		analytics *router.AnalyticsRouter,
+		replay *router.ReplayRouter,
 		cors *middleware.CORS,
 	) *router.Router {
 		return &router.Router{
-			Routes: []dto.Route{health, auth, org, project, ingest, issue, analytics},
+			Routes: []dto.Route{health, auth, org, project, ingest, issue, analytics, replay},
 			CORS:   cors.Handler(),
 		}
 	})

@@ -13,6 +13,13 @@ auth:
   #   google_client_secret: <your-secret>
   #   google_redirect_url: http://localhost:8080/api/auth/google/callback
 
+replay:
+  request_timeout: 5s
+  cache_ttl: 1m
+  allow_insecure: false
+  # Configure in config.local.yaml or ERRLOG_REPLAY_ENCRYPTION_KEY:
+  # encryption_key: <at-least-32-random-characters>
+
 mysql:
   host: localhost
   port: "3306"

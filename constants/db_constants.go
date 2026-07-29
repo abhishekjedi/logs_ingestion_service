@@ -37,3 +37,5 @@ const (
 	MemberActive  MemberStatus = "active"
 	MemberPending MemberStatus = "pending"
 )
+
+const ReplayProviderOpenReplay = "openreplay"

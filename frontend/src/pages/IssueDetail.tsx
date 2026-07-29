@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, type Issue, type TimePoint, type ErrorEvent, type Breadcrumb } from "../api";
+import {
+  api,
+  type Issue,
+  type TimePoint,
+  type ErrorEvent,
+  type Breadcrumb,
+  type SessionContext,
+  type SessionContextEvent,
+} from "../api";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const hour = (t: string) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit" });
@@ -72,7 +80,7 @@ export default function IssueDetail() {
         <div className="stack" style={{ gap: 10 }}>
           {events.length === 0 && <div className="muted">No sampled events.</div>}
           {events.map((e) => (
-            <EventRow key={e.event_id} e={e} serviceId={issue.service_id} />
+            <EventRow key={e.event_id} e={e} serviceId={issue.service_id} issueId={issue.id} />
           ))}
         </div>
       </div>
@@ -110,9 +118,11 @@ function KV({ title, rows }: { title: string; rows: [string, string][] }) {
   );
 }
 
-function EventRow({ e, serviceId }: { e: ErrorEvent; serviceId: number }) {
+function EventRow({ e, serviceId, issueId }: { e: ErrorEvent; serviceId: number; issueId: number }) {
   const [open, setOpen] = useState(false);
   const [crumbs, setCrumbs] = useState<Breadcrumb[] | null>(null);
+  const [sessionContext, setSessionContext] = useState<SessionContext | null>(null);
+  const [contextLoading, setContextLoading] = useState(false);
   const { http, client, rest } = partition(e.attributes);
 
   const toggle = () => {
@@ -123,6 +133,23 @@ function EventRow({ e, serviceId }: { e: ErrorEvent; serviceId: number }) {
         .breadcrumbs(serviceId, e.session_id, e.timestamp)
         .then((r) => setCrumbs(r.breadcrumbs || []))
         .catch(() => setCrumbs([]));
+    }
+    if (next && sessionContext === null && !contextLoading) {
+      setContextLoading(true);
+      api
+        .sessionContext(issueId, e.event_id)
+        .then(setSessionContext)
+        .catch(() => setSessionContext({
+          status: "temporarily_unavailable",
+          focused_at: e.timestamp,
+          journey: [],
+          network_failures: [],
+          console_errors: [],
+          exceptions: [],
+          counts: {},
+          truncated: false,
+        }))
+        .finally(() => setContextLoading(false));
     }
   };
 
@@ -187,8 +214,75 @@ function EventRow({ e, serviceId }: { e: ErrorEvent; serviceId: number }) {
               </div>
             )}
           </div>
+
+          <SessionContextView context={sessionContext} loading={contextLoading} />
         </div>
       )}
+    </div>
+  );
+}
+
+function SessionContextView({ context, loading }: { context: SessionContext | null; loading: boolean }) {
+  if (loading) {
+    return <div className="session-context muted" style={{ fontSize: 12 }}>Loading session context…</div>;
+  }
+  if (!context) return null;
+
+  const messages: Record<SessionContext["status"], string> = {
+    not_configured: "OpenReplay is not configured for this project.",
+    missing_session: "This event does not contain a browser session ID.",
+    recording_pending: "The recording is still being processed by OpenReplay.",
+    temporarily_unavailable: "OpenReplay is temporarily unavailable. The rest of this event remains accessible.",
+    ready: "",
+  };
+  if (context.status !== "ready") {
+    return <div className="session-context muted" style={{ fontSize: 12 }}>{messages[context.status]}</div>;
+  }
+
+  return (
+    <div className="session-context">
+      <div className="row spread" style={{ marginBottom: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700 }}>Session context</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {context.session_id}
+            {context.truncated && " · bounded view"}
+          </div>
+        </div>
+        {context.replay_url && (
+          <a className="replay-link" href={context.replay_url} target="_blank" rel="noreferrer">
+            Watch replay ↗
+          </a>
+        )}
+      </div>
+      <ContextEvents title="User journey" events={context.journey} />
+      <ContextEvents title="Failed requests" events={context.network_failures} />
+      <ContextEvents title="Console errors" events={context.console_errors} />
+      <ContextEvents title="Browser exceptions" events={context.exceptions} />
+      {context.journey.length + context.network_failures.length + context.console_errors.length + context.exceptions.length === 0 && (
+        <div className="muted" style={{ fontSize: 12 }}>No events were recorded in the error window.</div>
+      )}
+    </div>
+  );
+}
+
+function ContextEvents({ title, events }: { title: string; events: SessionContextEvent[] }) {
+  if (events.length === 0) return null;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {title}
+      </div>
+      {events.map((event) => (
+        <div className="context-event" key={`${event.source_event_id}-${event.kind}`}>
+          <span className="muted" style={{ fontSize: 11 }}>{new Date(event.timestamp).toLocaleTimeString()}</span>
+          <span className="context-kind">{event.kind.replaceAll("_", " ")}</span>
+          <span>
+            {event.label}
+            {event.count && event.count > 1 ? ` ×${event.count}` : ""}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -8,6 +8,9 @@
 # Build output
 /bin/
 /out/
+node_modules/
+dist/
+*.tsbuildinfo
 
 # Go
 /vendor/

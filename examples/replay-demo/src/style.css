@@ -1,0 +1,19 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #1f2937;
+  background: #f5f7fb;
+}
+
+body { margin: 0; }
+main { width: min(620px, calc(100% - 40px)); margin: 80px auto; }
+h1 { margin: 8px 0; }
+.eyebrow { color: #635bff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.muted { color: #6b7280; }
+section { margin-top: 28px; padding: 24px; border: 1px solid #e5e7eb; border-radius: 14px; background: white; }
+.product { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+.product p { margin: 4px 0 0; }
+label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 18px; }
+input { height: 42px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; }
+button { height: 42px; border: 0; border-radius: 8px; background: #635bff; color: white; padding: 0 18px; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .6; }
+.failure { border-color: #fecaca; background: #fff7f7; }

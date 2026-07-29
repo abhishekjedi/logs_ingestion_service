@@ -61,6 +61,17 @@ func (a *authzService) RequireProjectAccess(ctx context.Context, userID, project
 	return a.RequireMember(ctx, userID, *proj.OrgID)
 }
 
+func (a *authzService) RequireProjectManage(ctx context.Context, userID, projectID uint64) error {
+	proj, err := a.projects.GetByID(ctx, projectID)
+	if err != nil {
+		return services.ErrNotFound
+	}
+	if proj.OrgID == nil {
+		return services.ErrForbidden
+	}
+	return a.RequireManage(ctx, userID, *proj.OrgID)
+}
+
 func (a *authzService) RequireServiceAccess(ctx context.Context, userID, serviceID uint64) error {
 	svc, err := a.svcs.GetByID(ctx, serviceID)
 	if err != nil {

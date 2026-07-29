@@ -23,7 +23,10 @@ func (m *CORS) Handler() gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
+			c.Header(
+				"Access-Control-Allow-Headers",
+				"Content-Type, X-API-Key, X-OpenReplay-Session-ID, X-OpenReplay-Project-Key, X-OpenReplay-Session-URL",
+			)
 			c.Header("Vary", "Origin")
 		}
 		if c.Request.Method == http.MethodOptions {

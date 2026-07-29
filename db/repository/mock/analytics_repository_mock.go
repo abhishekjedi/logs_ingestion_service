@@ -52,6 +52,19 @@ func (m *AnalyticsRepository) RecentErrorEvents(ctx context.Context, issueID uin
 	return out, args.Error(1)
 }
 
+func (m *AnalyticsRepository) GetErrorEvent(
+	ctx context.Context,
+	issueID uint64,
+	eventID string,
+) (*dbdto.ErrorEventDetail, error) {
+	args := m.Called(ctx, issueID, eventID)
+	var event *dbdto.ErrorEventDetail
+	if value := args.Get(0); value != nil {
+		event = value.(*dbdto.ErrorEventDetail)
+	}
+	return event, args.Error(1)
+}
+
 func (m *AnalyticsRepository) Breadcrumbs(ctx context.Context, serviceID uint64, sessionID string, before time.Time, limit int) ([]dbdto.Breadcrumb, error) {
 	args := m.Called(ctx, serviceID, sessionID, before, limit)
 	var out []dbdto.Breadcrumb
